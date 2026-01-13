@@ -45,4 +45,36 @@ router.post("/login", async (req, res) => {
   }
 });
 
+router.post("/register", async (req, res) => {
+  console.log("BODY RECEBIDO:", req.body);
+  const { nome, sobrenome, email, senha, celular, dataNascimento } = req.body;
+
+  try {
+    // 1. Verificar se email já existe
+    const exists = await pool.query("SELECT id FROM users WHERE email = $1", [
+      email,
+    ]);
+
+    if (exists.rows.length > 0) {
+      return res.status(400).json({ erro: "Email já cadastrado" });
+    }
+
+    // 2. Criar hash da senha
+    const hash = await bcrypt.hash(senha, 10);
+
+    // 3. Inserir no banco
+    await pool.query(
+      `INSERT INTO users
+      (nome, sobrenome, email, senha, contato, aniversario)
+      VALUES ($1, $2, $3, $4, $5, $6)`,
+      [nome, sobrenome, email, hash, celular, dataNascimento]
+    );
+
+    res.status(201).json({ mensagem: "Usuário criado com sucesso" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erro: "Erro no servidor" });
+  }
+});
+
 module.exports = router;
