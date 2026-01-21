@@ -13,3 +13,6 @@ const pool = new Pool({
 });
 
 module.exports = pool;
+
+/* Aqui é feito o primeiro contato com o banco*/
+/* Para usar um ".query("SELECT * FROM sla")" eu posso usar o pool criado acima, pois ele carrega as credenciais para acessar o banco*/
