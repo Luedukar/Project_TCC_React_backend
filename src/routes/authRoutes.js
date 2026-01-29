@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
+const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
@@ -105,6 +106,52 @@ router.post("/register", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ erro: "Erro no servidor" });
+  }
+});
+
+/* acessado pela rota /me (http://localhost:3000/auth/me), chama a função authMiddleware que valida o token recebido e decodifica o mesmo
+o authMiddleware retorna se foi sucesso ou falha, em caso de sucesso retorna código de sucesso e também req.user
+em caso de falha retorna código de falha e também Token inválido */
+router.get("/me", authMiddleware, async (req, res) => {
+  try {
+    /* Consulta no banco com req.user.id para obter informações do usuario que está fazendo login*/
+    const result = await pool.query(
+      "SELECT u.nome AS usuarioNome, u.sobrenome, u.email, u.id FROM users u WHERE u.id = $1",
+      [req.user.id],
+    );
+
+    /* Em caso de sucesso, envia como resposta de http://localhost:3000/auth/me a mensagem de sucesso mais o resultado da consulta
+    Lembrando, a consulta pode ter sucesso mas não retornar nenhuma informação*/
+    res.json(result.rows);
+    /* Validação do retorno enviado, excluir quando não for mais necessario*/
+    console.log(result.rows);
+  } catch (err) {
+    /* Em caso de erro, vai mostrar o erro aqui mesmo, mas também envia a resposta de erro (status 500) mais Erro ao buscar usuário*/
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao buscar usuário" });
+  }
+});
+
+/* acessado pela rota /me (http://localhost:3000/auth/productsMe), chama a função authMiddleware que valida o token recebido e decodifica o mesmo
+o authMiddleware retorna se foi sucesso ou falha, em caso de sucesso retorna código de sucesso e também req.user
+em caso de falha retorna código de falha e também Token inválido */
+router.get("/productsMe", authMiddleware, async (req, res) => {
+  try {
+    /* Consulta no banco com req.user.id, dessa vez, usando o userID da tabela de produtos*/
+    const result = await pool.query(
+      "SELECT p.productid AS idProduto, p.nome AS produtoNome, p.precoDesejado, p.enviarAviso FROM produtos p WHERE p.userID = $1",
+      [req.user.id],
+    );
+
+    /* Em caso de sucesso, envia como resposta de http://localhost:3000/auth/productsMe a mensagem de sucesso mais o resultado da consulta
+    Lembrando, a consulta pode ter sucesso mas não retornar nenhuma informação*/
+    res.json(result.rows);
+    /* Validação do retorno enviado, excluir quando não for mais necessario*/
+    console.log(result.rows);
+  } catch (err) {
+    /* Em caso de erro, vai mostrar o erro aqui mesmo, mas também envia a resposta de erro (status 500) mais Erro ao buscar produtos do usuario*/
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao buscar produtos do usuario" });
   }
 });
 
