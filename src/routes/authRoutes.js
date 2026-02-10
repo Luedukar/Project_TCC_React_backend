@@ -171,8 +171,7 @@ router.post("/delete", async (req, res) => {
       [idProduto],
     );
 
-    /* Em caso de sucesso, envia como resposta de http://localhost:3000/auth/delete o log de sucesso mais uma mensagem em formato Json
-    Lembrando, a consulta pode ter sucesso mas não retornar nenhuma informação*/
+    /* Em caso de sucesso, envia como resposta de http://localhost:3000/auth/delete o log de sucesso mais uma mensagem em formato Json*/
     res.json({ mensagem: "Produto deletado com sucesso" });
     /* Validação do retorno enviado, excluir quando não for mais necessario*/
     console.log(result);
@@ -183,4 +182,57 @@ router.post("/delete", async (req, res) => {
   }
 });
 
+// acessa a rota /avsiOff através de http://localhost:3000/auth/avisoOff
+router.post("/avisoOff", async (req, res) => {
+  // quando ele for chamado, vai receber uma req, isso é para validar o recebimento (excluir quando não precisar mais)
+  console.log("BODY RECEBIDO:", req.body);
+  // a req recebida possui um body, que é justamente a informação necessaria, o ID do que o aviso diario deve ser desativado
+  const { idProduto } = req.body;
+  //validação da extração do ID (excluir quando não for mais necessario)
+  console.log(idProduto);
+
+  try {
+    // realiza o update no banco usando o pool e executando a query abaixo onde $1 assume o valor do ID (isso previne SQL injection)
+    const result = await pool.query(
+      "UPDATE produtos SET enviaraviso = FALSE WHERE productid = $1",
+      [idProduto],
+    );
+
+    /* Em caso de sucesso, envia como resposta de http://localhost:3000/auth/avisoOff o log de sucesso mais uma mensagem em formato Json*/
+    res.json({ mensagem: "Aviso dasativado com sucesso" });
+    /* Validação do retorno enviado, excluir quando não for mais necessario*/
+    console.log(result);
+  } catch (err) {
+    /* Em caso de erro, vai mostrar o erro aqui mesmo, mas também envia a resposta de erro (status 500) mais Erro ao deleter produto*/
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao desativar aviso" });
+  }
+});
+
+// acessa a rota /avsiOff através de http://localhost:3000/auth/avisoOn
+router.post("/avisoOn", async (req, res) => {
+  // quando ele for chamado, vai receber uma req, isso é para validar o recebimento (excluir quando não precisar mais)
+  console.log("BODY RECEBIDO:", req.body);
+  // a req recebida possui um body, que é justamente a informação necessaria, o ID do que o aviso diario deve ser desativado
+  const { idProduto } = req.body;
+  //validação da extração do ID (excluir quando não for mais necessario)
+  console.log(idProduto);
+
+  try {
+    // realiza o update no banco usando o pool e executando a query abaixo onde $1 assume o valor do ID (isso previne SQL injection)
+    const result = await pool.query(
+      "UPDATE produtos SET enviaraviso = TRUE WHERE productid = $1",
+      [idProduto],
+    );
+
+    /* Em caso de sucesso, envia como resposta de http://localhost:3000/auth/avisoOn o log de sucesso mais uma mensagem em formato Json*/
+    res.json({ mensagem: "Aviso habilitado com sucesso" });
+    /* Validação do retorno enviado, excluir quando não for mais necessario*/
+    console.log(result);
+  } catch (err) {
+    /* Em caso de erro, vai mostrar o erro aqui mesmo, mas também envia a resposta de erro (status 500) mais Erro ao deleter produto*/
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao ativar aviso" });
+  }
+});
 module.exports = router;
