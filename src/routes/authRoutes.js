@@ -139,7 +139,7 @@ router.get("/productsMe", authMiddleware, async (req, res) => {
   try {
     /* Consulta no banco com req.user.id, dessa vez, usando o userID da tabela de produtos*/
     const result = await pool.query(
-      "SELECT p.productid AS idProduto, p.nome AS produtoNome, p.precoDesejado, p.enviarAviso FROM produtos p WHERE p.userID = $1",
+      "SELECT p.productid AS idProduto, p.nome AS produtoNome, p.precoDesejado, p.enviarAviso FROM produtos p WHERE p.userID = $1 ORDER by productID",
       [req.user.id],
     );
 
@@ -233,6 +233,36 @@ router.post("/avisoOn", async (req, res) => {
     /* Em caso de erro, vai mostrar o erro aqui mesmo, mas também envia a resposta de erro (status 500) mais Erro ao deleter produto*/
     console.error(err);
     res.status(500).json({ erro: "Erro ao ativar aviso" });
+  }
+});
+
+// Rota para criação de avisos
+router.post("/createProdutos", authMiddleware, async (req, res) => {
+  // vai receber o token autenticado e decodificado do authMiddleware, assim consigo o ID do user
+  // vai receber também a req do frot contendo o nome do produto, o preço desejado e o link da Amazon
+
+  // Validação que a req foi recebida e o que veio nela (excluir quando não for mais necessario)
+  console.log("BODY RECEBIDO:", req.body);
+  console.log("Recebido id do user:", req.user.id);
+  /* pega o conteudo recebido em json e devide o mesmo em variaveis algo como const email = req.body.email, neste caso fazendo por ordem (o nome é desestruturação) */
+  const { nome, preco, link } = req.body;
+
+  try {
+    // Executa a criação de avisos no banco
+    const result = await pool.query(
+      "INSERT INTO produtos (UserID, Nome, PrecoDesejado, Link) VALUES ($1, $2, $3, $4)",
+      [req.user.id, nome, preco, link],
+    );
+
+    /* Em caso de sucesso, envia como resposta de http://localhost:3000/auth/createProdutos a mensagem de sucesso
+    Lembrando, a consulta pode ter sucesso mas não retornar nenhuma informação*/
+    res.json({ mensagem: "Aviso criado com sucesso" });
+    /* Validação do retorno enviado, excluir quando não for mais necessario*/
+    console.log(res.json);
+  } catch (err) {
+    /* Em caso de erro, vai mostrar o erro aqui mesmo, mas também envia a resposta de erro (status 500) mais Erro ao criar aviso*/
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao criar aviso" });
   }
 });
 module.exports = router;

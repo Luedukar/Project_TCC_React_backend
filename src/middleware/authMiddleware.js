@@ -18,7 +18,7 @@ function autenticar(req, res, next) {
 
   /* Valida o token*/
   try {
-    /* verifica se o tojen foi assinado pelo JWT_SECRET do .env, se não expirou e extrai o "corpo" do token*/
+    /* verifica se o token foi assinado pelo JWT_SECRET do .env, se não expirou e extrai o "corpo" do token*/
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     /* Salva as informações decodificadas*/
     req.user = decoded;
