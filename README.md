@@ -8,6 +8,6 @@ Atualmente o projeto conta com:
 
 Tecnologias utilizadas até o momento:
 
-- React (JavaScript, HTML) + Tailwind
+- React (JavaScript)
 
 Repositirio dedicando ao Backend, contendo o servidor utilizado, rotas, validações e interações com banco
