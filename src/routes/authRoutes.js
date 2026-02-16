@@ -8,8 +8,6 @@ const router = express.Router();
 
 /* Essa cara aqui que cria a rota a ser usado no frontend (http://localhost:3000/auth/login)*/
 router.post("/login", async (req, res) => {
-  /* Se ele for acinado/receber algo, ele mostra por meio do log abaixo (excluir quando não for mais necessário)*/
-  console.log("BODY RECEBIDO:", req.body);
   /* pega o conteudo recebido em json e devide o mesmo em variaveis algo como const email = req.body.email, neste caso fazendo por ordem (o nome é desestruturação) */
   const { email, senha } = req.body;
 
@@ -72,8 +70,6 @@ router.post("/login", async (req, res) => {
 
 /* Essa cara aqui que cria a rota a ser usado no frontend (http://localhost:3000/auth/register)*/
 router.post("/register", async (req, res) => {
-  /* Se ele for acinado/receber algo, ele mostra por meio do log abaixo (excluir quando não for mais necessário)*/
-  console.log("BODY RECEBIDO:", req.body);
   /* pega o conteudo recebido em json e devide o mesmo em variaveis algo como const email = req.body.email, neste caso fazendo por ordem (o nome é desestruturação) */
   const { nome, sobrenome, email, senha, celular, dataNascimento } = req.body;
 
@@ -123,8 +119,6 @@ router.get("/me", authMiddleware, async (req, res) => {
     /* Em caso de sucesso, envia como resposta de http://localhost:3000/auth/me a mensagem de sucesso mais o resultado da consulta
     Lembrando, a consulta pode ter sucesso mas não retornar nenhuma informação*/
     res.json(result.rows);
-    /* Validação do retorno enviado, excluir quando não for mais necessario*/
-    console.log(result.rows);
   } catch (err) {
     /* Em caso de erro, vai mostrar o erro aqui mesmo, mas também envia a resposta de erro (status 500) mais Erro ao buscar usuário*/
     console.error(err);
@@ -157,12 +151,8 @@ router.get("/productsMe", authMiddleware, async (req, res) => {
 
 // acessa a rota /delete através de http://localhost:3000/auth/delete
 router.post("/delete", async (req, res) => {
-  // quando ele for chamado, vai receber uma req, isso é para validar o recebimento (excluir quando não precisar mais)
-  console.log("BODY RECEBIDO:", req.body);
   // a req recebida possui um body, que é justamente a informação necessaria, o ID do produto a ser excluido
   const { idProduto } = req.body;
-  //validação da extração do ID (excluir quando não for mais necessario)
-  console.log(idProduto);
 
   try {
     // realiza o delete no banco usando o pool e executando a query abaixo onde $1 assume o valor do ID (isso previne SQL injection)
@@ -184,12 +174,8 @@ router.post("/delete", async (req, res) => {
 
 // acessa a rota /avsiOff através de http://localhost:3000/auth/avisoOff
 router.post("/avisoOff", async (req, res) => {
-  // quando ele for chamado, vai receber uma req, isso é para validar o recebimento (excluir quando não precisar mais)
-  console.log("BODY RECEBIDO:", req.body);
   // a req recebida possui um body, que é justamente a informação necessaria, o ID do que o aviso diario deve ser desativado
   const { idProduto } = req.body;
-  //validação da extração do ID (excluir quando não for mais necessario)
-  console.log(idProduto);
 
   try {
     // realiza o update no banco usando o pool e executando a query abaixo onde $1 assume o valor do ID (isso previne SQL injection)
@@ -211,12 +197,8 @@ router.post("/avisoOff", async (req, res) => {
 
 // acessa a rota /avsiOff através de http://localhost:3000/auth/avisoOn
 router.post("/avisoOn", async (req, res) => {
-  // quando ele for chamado, vai receber uma req, isso é para validar o recebimento (excluir quando não precisar mais)
-  console.log("BODY RECEBIDO:", req.body);
   // a req recebida possui um body, que é justamente a informação necessaria, o ID do que o aviso diario deve ser desativado
   const { idProduto } = req.body;
-  //validação da extração do ID (excluir quando não for mais necessario)
-  console.log(idProduto);
 
   try {
     // realiza o update no banco usando o pool e executando a query abaixo onde $1 assume o valor do ID (isso previne SQL injection)
@@ -240,10 +222,6 @@ router.post("/avisoOn", async (req, res) => {
 router.post("/createProdutos", authMiddleware, async (req, res) => {
   // vai receber o token autenticado e decodificado do authMiddleware, assim consigo o ID do user
   // vai receber também a req do frot contendo o nome do produto, o preço desejado e o link da Amazon
-
-  // Validação que a req foi recebida e o que veio nela (excluir quando não for mais necessario)
-  console.log("BODY RECEBIDO:", req.body);
-  console.log("Recebido id do user:", req.user.id);
   /* pega o conteudo recebido em json e devide o mesmo em variaveis algo como const email = req.body.email, neste caso fazendo por ordem (o nome é desestruturação) */
   const { nome, preco, link } = req.body;
 
