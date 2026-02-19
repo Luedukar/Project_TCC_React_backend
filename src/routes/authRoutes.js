@@ -235,8 +235,6 @@ router.post("/createProdutos", authMiddleware, async (req, res) => {
     /* Em caso de sucesso, envia como resposta de http://localhost:3000/auth/createProdutos a mensagem de sucesso
     Lembrando, a consulta pode ter sucesso mas não retornar nenhuma informação*/
     res.json({ mensagem: "Aviso criado com sucesso" });
-    /* Validação do retorno enviado, excluir quando não for mais necessario*/
-    console.log(res.json);
   } catch (err) {
     /* Em caso de erro, vai mostrar o erro aqui mesmo, mas também envia a resposta de erro (status 500) mais Erro ao criar aviso*/
     console.error(err);
