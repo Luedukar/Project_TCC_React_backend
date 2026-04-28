@@ -3,7 +3,7 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 require("dotenv").config();
 
-/* Importa as rotas de autenticação (dentro desse file chamado abaixo que está login e register)
+/* Importa as rotas de autenticação (dentro desse file chamado abaixo que está todas as rotas usadas)
 Ou seja, podemos acessar os "router.post" neste file*/
 const authRoutes = require("./routes/authRoutes");
 
@@ -16,14 +16,14 @@ app.use(cookieParser());
 // Permite que o front consiga acessar a API
 app.use(
   cors({
-    origin: "http://localhost:5173", // 🔥 seu frontend
-    credentials: true, // 🔥 permite cookies
+    origin: "http://localhost:5173", // endereço do front
+    credentials: true, // permite Cookies
   }),
 );
-// Permite json (ler o body, converter em JS, o que permite alimentar as variaveis, tipo const { email, senha } = req.body
+// Permite json ler o body, converter em JS, o que permite alimentar as variaveis, por exemplo const { email, senha } = req.body
 app.use(express.json());
 
-// até o momento o enderoço do back é http://localhost:3000, isso permite acessar authRoutes por meio de http://localhost:3000/auth
+// Até o momento o enderoço do back é http://localhost:3000, isso permite acessar authRoutes por meio de http://localhost:3000/auth
 app.use("/auth", authRoutes);
 
 // Testa se está funcionando
