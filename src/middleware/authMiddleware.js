@@ -1,33 +1,39 @@
 const jwt = require("jsonwebtoken");
 
-/* Função de nome autenticas que recebe req, res e next
-req = requisição
-res = resposta
-next = liberada a execução*/
-function autenticar(req, res, next) {
-  /* Leitura do header do token*/
-  const authHeader = req.headers.authorization;
+function createAuthMiddleware({ secret, secretEnv = "JWT_SECRET" } = {}) {
+  return function autenticar(req, res, next) {
+    const authHeader = req.headers.authorization;
 
-  /* Se for vazio (não existir token) para tudo*/
-  if (!authHeader) {
-    return res.status(401).json({ erro: "Token não informado" });
-  }
+    if (!authHeader) {
+      return res.status(401).json({ erro: "Token nÃ£o informado" });
+    }
 
-  /* O header vem com algo como "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", aqui deixamos o "Bearer" de lado*/
-  const token = authHeader.split(" ")[1];
+    const token = authHeader.split(" ")[1];
 
-  /* Valida o token*/
-  try {
-    /* verifica se o token foi assinado pelo JWT_SECRET do .env, se não expirou e extrai o "corpo" do token*/
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    /* Salva as informações decodificadas*/
-    req.user = decoded;
-    /* Libera o acesso*/
-    next();
-    /* Caso algumas coisa falhar, retorna erro*/
-  } catch {
-    res.status(401).json({ erro: "Token inválido" });
-  }
+    const jwtSecret = secret ?? process.env[secretEnv];
+    if (!jwtSecret) {
+      return res
+        .status(500)
+        .json({ erro: `JWT secret nÃ£o configurado (${secretEnv})` });
+    }
+
+    try {
+      const decoded = jwt.verify(token, jwtSecret);
+      req.user = decoded;
+      next();
+    } catch {
+      res.status(401).json({ erro: "Token invÃ¡lido" });
+    }
+  };
 }
+
+// Middleware padrão (assinado por JWT_SECRET)
+const autenticar = createAuthMiddleware({ secretEnv: "JWT_SECRET" });
+
+// Ex.: router.get("/rotaA", autenticar, handler)
+// Ex.: router.get("/rotaB", autenticar.comAssinatura("JWT_SECRET2"), handler)
+autenticar.comAssinatura = (secretEnv) => createAuthMiddleware({ secretEnv });
+autenticar.comSecret = (secret) => createAuthMiddleware({ secret });
+autenticar.create = createAuthMiddleware;
 
 module.exports = autenticar;
