@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
 require("dotenv").config();
 
 /* Importa as rotas de autenticação (dentro desse file chamado abaixo que está login e register)
@@ -9,8 +10,16 @@ const authRoutes = require("./routes/authRoutes");
 // Inicializa a API
 const app = express();
 
+// Permite cookies
+app.use(cookieParser());
+
 // Permite que o front consiga acessar a API
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173", // 🔥 seu frontend
+    credentials: true, // 🔥 permite cookies
+  }),
+);
 // Permite json (ler o body, converter em JS, o que permite alimentar as variaveis, tipo const { email, senha } = req.body
 app.use(express.json());
 

@@ -7,6 +7,7 @@ const nodemailer = require("nodemailer");
 
 const router = express.Router();
 
+// Função para o envio do e-mail da autenticação de duplo fator
 async function sendTwoFactorCode(usuario) {
   try {
     const codigo = Math.floor(100000 + Math.random() * 900000);
@@ -38,7 +39,7 @@ async function sendTwoFactorCode(usuario) {
       text: `Seu código é ${codigo}`,
     });
 
-    console.log("Código enviado para:", usuario.email);
+    // Retorna ID para envio ao front
     return id;
   } catch (err) {
     console.error("Erro ao enviar código de dois fatores:", err);
@@ -74,23 +75,17 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ erro: "Senha inválida" });
     }
 
-    /* const token = jwt.sign(
-      { id: usuario.id, email: usuario.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" },
-    ); */
-
-    /*  res.json({
-      token,
-      usuario: {
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
-      },
-    }); */
-
+    // gera o duplo fator e recbe como resposta o ID do duplo fator criado
     const codigo = await sendTwoFactorCode(usuario);
-    res.status(200).json({ codigo: codigo });
+
+    // cria e salva o cookie referente ao duplo fator
+    res.cookie("id_2fa", codigo, {
+      httpOnly: true,
+      secure: false, // true em produção
+      sameSite: "Strict",
+      maxAge: 5 * 60 * 1000, // 5 minutos (tempo de expiração no banco)
+    });
+    res.status(200).json({ sucesso: "e-mail e senha validados com sucesso" });
     // Caso aconteça alguma falha, mensagem de erro contendo o erro que aconteceu
   } catch (err) {
     console.error("ERRO NO LOGIN:", err);
@@ -273,7 +268,8 @@ router.post("/createProdutos", authMiddleware, async (req, res) => {
 // Essa cara aqui que cria a rota a ser usado no frontend (http://localhost:3000/auth/autenticarDuploFator)
 router.post("/autenticarDuploFator", async (req, res) => {
   // pega o conteudo recebido em json e devide o mesmo em variaveis algo como const email = req.body.email, neste caso fazendo por ordem (o nome é desestruturação)
-  const { id_2fa, codigoInserido } = req.body;
+  const id_2fa = req.cookies.id_2fa;
+  const codigoInserido = req.body.codigoInserido;
   console.log(id_2fa, codigoInserido);
 
   try {
@@ -326,21 +322,28 @@ router.post("/autenticarDuploFator", async (req, res) => {
       { expiresIn: "1h" },
     );
 
-    // envia o token de login
-    res.json({
-      token,
-      usuario: {
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
-      },
+    // cria e salva o cookie de login
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: true, // true em produção
+      sameSite: "Strict",
+      maxAge: 60 * 60 * 1000, // 1 hora
     });
+    console.log("cookie de login enviado com sucesso");
+    res.status(200).json({ sucesso: "Duplo fator autenticado com sucesso" });
 
     // Caso aconteça alguma falha, mensagem de erro contendo o erro que aconteceu
   } catch (err) {
     console.error("ERRO NO LOGIN:", err);
     res.status(500).json({ erro: err.message });
   }
+});
+
+// validar cookie assinado, caso ok, libera a rota
+router.get("/protect", authMiddleware, (req, res) => {
+  res.json({
+    usuario: req.user,
+  });
 });
 
 module.exports = router;

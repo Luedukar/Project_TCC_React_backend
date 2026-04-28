@@ -1,39 +1,25 @@
 const jwt = require("jsonwebtoken");
 
-function createAuthMiddleware({ secret, secretEnv = "JWT_SECRET" } = {}) {
-  return function autenticar(req, res, next) {
-    const authHeader = req.headers.authorization;
+function autenticar(req, res, next) {
+  // Acessar cookies
+  const token = req.cookies.token;
 
-    if (!authHeader) {
-      return res.status(401).json({ erro: "Token nÃ£o informado" });
-    }
+  // Valida se foi encontrado o token nos cookies
+  if (!token) {
+    return res.status(401).json({ erro: "Token não informado" });
+  }
 
-    const token = authHeader.split(" ")[1];
+  // Decodifica o token, salvar as informações e libera seguir
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const jwtSecret = secret ?? process.env[secretEnv];
-    if (!jwtSecret) {
-      return res
-        .status(500)
-        .json({ erro: `JWT secret nÃ£o configurado (${secretEnv})` });
-    }
+    req.user = decoded;
 
-    try {
-      const decoded = jwt.verify(token, jwtSecret);
-      req.user = decoded;
-      next();
-    } catch {
-      res.status(401).json({ erro: "Token invÃ¡lido" });
-    }
-  };
+    next();
+    // Em caso de erro, esse bloco é usado
+  } catch (err) {
+    return res.status(401).json({ erro: "Token inválido" });
+  }
 }
-
-// Middleware padrão (assinado por JWT_SECRET)
-const autenticar = createAuthMiddleware({ secretEnv: "JWT_SECRET" });
-
-// Ex.: router.get("/rotaA", autenticar, handler)
-// Ex.: router.get("/rotaB", autenticar.comAssinatura("JWT_SECRET2"), handler)
-autenticar.comAssinatura = (secretEnv) => createAuthMiddleware({ secretEnv });
-autenticar.comSecret = (secret) => createAuthMiddleware({ secret });
-autenticar.create = createAuthMiddleware;
 
 module.exports = autenticar;
