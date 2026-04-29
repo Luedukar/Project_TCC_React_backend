@@ -4,19 +4,24 @@ const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
 const authMiddleware = require("../middleware/authMiddleware");
 const nodemailer = require("nodemailer");
-
 const router = express.Router();
 
 // Função para o envio do e-mail da autenticação de duplo fator
 async function sendTwoFactorCode(usuario) {
   try {
-    const codigo = Math.floor(100000 + Math.random() * 900000);
+    // ID do código de duplo fator (enviar também como Cookie)
     const id = Math.floor(100000 + Math.random() * 900000);
+
+    // Código do duplo fator (enviar somente esse por e-mail)
+    const codigo = Math.floor(100000 + Math.random() * 900000);
+
+    // Conversão do código do duplo fator para hash (enviar somente esse ao banco)
+    const hash = await bcrypt.hash(codigo.toString(), 10);
 
     // Insere o código no banco
     await pool.query(
       "INSERT INTO two_factor_codes (id, user_id, code, expires_at) VALUES ($1, $2, $3, DATE_ADD(NOW(), INTERVAL '5 minutes'))",
-      [id, usuario.id, codigo],
+      [id, usuario.id, hash],
     );
 
     // Configura o transporte de email
@@ -266,8 +271,13 @@ router.post("/autenticarDuploFator", async (req, res) => {
     // Será encontrado somente um resultado
     const validar_2fa = result.rows[0];
 
-    // Comparava valor de código fornecido x valor de código no banco
-    const autenticar_sfa = codigoInserido == validar_2fa.code;
+    /* Compara nosso valor senha obtido através do front com o valor obtido do banco, 
+    no banco a senha é um hash, então ele converte a senha do front em hash (mesma logica aplicada para sair o mesmo resultado)
+    e então faz a comparação */
+    const autenticar_sfa = await bcrypt.compare(
+      codigoInserido,
+      validar_2fa.code,
+    );
 
     // Se o resultado não for TRUE, os códigos não correspondem, altera o número de tentativas restantes no banco e retorna a msg de erro
     if (!autenticar_sfa) {
@@ -289,6 +299,13 @@ router.post("/autenticarDuploFator", async (req, res) => {
       'SELECT * FROM users WHERE "id" = $1;',
       [validar_2fa.user_id],
     );
+
+    //limpa Cookie contendo o código do 2fa
+    res.clearCookie("id_2fa", {
+      httpOnly: true,
+      secure: false, // true em produção (HTTPS)
+      sameSite: "Strict",
+    });
 
     const usuario = result_user.rows[0];
 
@@ -320,6 +337,17 @@ router.get("/protect", authMiddleware, (req, res) => {
   res.json({
     usuario: req.user,
   });
+});
+
+//Excluir token de login (realizar logout)
+router.post("/logout", (req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: false, // true em produção (HTTPS)
+    sameSite: "Strict",
+  });
+
+  res.status(200).json({ mensagem: "Logout realizado com sucesso" });
 });
 
 module.exports = router;
