@@ -3,9 +3,8 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
 const authMiddleware = require("../middleware/authMiddleware");
-const nodemailer = require("nodemailer");
 const router = express.Router();
-
+const { sendTwoFactorEmail } = require("../services/emailService");
 // Função para o envio do e-mail da autenticação de duplo fator
 async function sendTwoFactorCode(usuario) {
   try {
@@ -24,27 +23,10 @@ async function sendTwoFactorCode(usuario) {
       [id, usuario.id, hash],
     );
 
-    // Configura o transporte de email
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      auth: {
-        user: process.env.user_email,
-        pass: process.env.email_senha,
-      },
-    });
+    // usa a função para enviar o e-mail
+    await sendTwoFactorEmail(usuario.email, codigo);
 
-    // Envia o email
-    await transporter.sendMail({
-      from: '"ADM do projeto" <luedukar@gmail.com>',
-      to: usuario.email,
-      subject: "Código de dois fatores",
-      html: `<p>Seu código é ${codigo}</p>`,
-      text: `Seu código é ${codigo}`,
-    });
-
-    // Retorna ID para envio ao front
+    // Retorna ID para salvar em Cookies
     return id;
   } catch (err) {
     console.error("Erro ao enviar código de dois fatores:", err);
