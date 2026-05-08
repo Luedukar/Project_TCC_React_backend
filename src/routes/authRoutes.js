@@ -156,7 +156,7 @@ router.get("/productsMe", authMiddleware, async (req, res) => {
 });
 
 // Acessa a rota /delete através de http://localhost:3000/auth/delete
-router.post("/delete", async (req, res) => {
+router.post("/delete", authMiddleware, async (req, res) => {
   // A req recebida possui um body, que é justamente a informação necessaria, o ID do produto a ser excluido
   const { idProduto } = req.body;
 
@@ -176,7 +176,7 @@ router.post("/delete", async (req, res) => {
 });
 
 // Acessa a rota /avsiOff através de http://localhost:3000/auth/avisoOff
-router.post("/avisoOff", async (req, res) => {
+router.post("/avisoOff", authMiddleware, async (req, res) => {
   const { idProduto } = req.body;
 
   try {
@@ -194,7 +194,7 @@ router.post("/avisoOff", async (req, res) => {
 });
 
 // Acessa a rota /avsiOff através de http://localhost:3000/auth/avisoOn
-router.post("/avisoOn", async (req, res) => {
+router.post("/avisoOn", authMiddleware, async (req, res) => {
   const { idProduto } = req.body;
 
   try {
