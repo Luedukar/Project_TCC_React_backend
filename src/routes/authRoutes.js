@@ -215,6 +215,17 @@ router.post("/avisoOn", authMiddleware, async (req, res) => {
 router.post("/createProdutos", authMiddleware, async (req, res) => {
   const { nome, preco, link } = req.body;
 
+  const qtProdutos = await pool.query(
+    "SELECT * FROM produtos WHERE userid = $1;",
+    [req.user.id],
+  );
+
+  if (qtProdutos.rows.length >= 3) {
+    return res.status(401).json({
+      erro: "Você tem 10 avisos criados, exclua ao menos 1 para criar um novo",
+    });
+  }
+
   try {
     // Executa a criação de avisos no banco
     const result = await pool.query(
@@ -256,13 +267,13 @@ router.post("/autenticarDuploFator", async (req, res) => {
     /* Compara nosso valor senha obtido através do front com o valor obtido do banco, 
     no banco a senha é um hash, então ele converte a senha do front em hash (mesma logica aplicada para sair o mesmo resultado)
     e então faz a comparação */
-    const autenticar_sfa = await bcrypt.compare(
+    const autenticar_2fa = await bcrypt.compare(
       codigoInserido,
       validar_2fa.code,
     );
 
     // Se o resultado não for TRUE, os códigos não correspondem, altera o número de tentativas restantes no banco e retorna a msg de erro
-    if (!autenticar_sfa) {
+    if (!autenticar_2fa) {
       const result = await pool.query(
         "UPDATE two_factor_codes SET attempts = attempts + 1 WHERE id = $1;",
         [id_2fa],
