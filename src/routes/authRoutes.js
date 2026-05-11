@@ -343,4 +343,23 @@ router.post("/logout", (req, res) => {
   res.status(200).json({ mensagem: "Logout realizado com sucesso" });
 });
 
+// Cria a rota a ser usado no frontend (http://localhost:3000/auth/deleteUser) usando authMiddleware como explicado mais acima
+// Rota para deleter usuarios (em construção)
+router.post("/deleteUser", authMiddleware, async (req, res) => {
+  try {
+    // Executa a desativação de user no banco
+    // Apenas muda o satus para falso, não realiza a exclusão no sentido literal para fins de auditoria
+    const result = await pool.query(
+      "UPDATE users SET ativo = FALSE WHERE id = $1",
+      [req.user.id],
+    );
+
+    // Em caso de sucesso, envia como resposta a mensagem de sucesso
+    res.json({ mensagem: "Usuario deletado com sucesso" });
+  } catch (err) {
+    // Em caso de erro, envia a resposta de erro (status 500) mais "Erro ao criar aviso"
+    res.status(500).json({ erro: "Erro ao deletar usuario" });
+  }
+});
+
 module.exports = router;
