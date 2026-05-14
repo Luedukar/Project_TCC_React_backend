@@ -19,7 +19,7 @@ async function sendTwoFactorCode(usuario) {
 
     // Insere o código no banco
     await pool.query(
-      "INSERT INTO two_factor_codes (id, user_id, code, expires_at) VALUES ($1, $2, $3, DATE_ADD(NOW(), INTERVAL '5 minutes'))",
+      `INSERT INTO two_factor_codes (id, user_id, code, expires_at) VALUES ($1, $2, $3, DATE_ADD(NOW(), INTERVAL '5 minutes'))`,
       [id, usuario.id, hash],
     );
 
@@ -41,9 +41,10 @@ router.post("/login", async (req, res) => {
 
   try {
     // Busca pelo e-mail no banco, utilizando o valor email obtido acima, usa o pool para executar uma consulta no banco e aguarda um resultado
-    const result = await pool.query('SELECT * FROM users WHERE "email" = $1', [
-      email,
-    ]);
+    const result = await pool.query(
+      `SELECT * FROM users WHERE email = $1 AND status = 'ativo'`,
+      [email],
+    );
 
     // Se o retorno for 0 (zero linhas encontradas) ele não encontrou esse e-mail no banco, envia o erro e encerrar o bloco com o return
     if (result.rows.length === 0) {
@@ -73,10 +74,10 @@ router.post("/login", async (req, res) => {
       maxAge: 5 * 60 * 1000, // 5 minutos (tempo de expiração no banco)
     });
     // Status de sucesso para o front (que aguarda resposta)
-    res.status(200).json({ sucesso: "e-mail e senha validados com sucesso" });
+    res.json({ sucesso: "e-mail e senha validados com sucesso" });
     // Caso aconteça alguma falha, mensagem de erro contendo o erro que aconteceu
   } catch (err) {
-    console.error("ERRO NO LOGIN:", err);
+    console.error("Erro no login:", err);
     res.status(500).json({ erro: err.message });
   }
 });
@@ -87,14 +88,14 @@ router.post("/register", async (req, res) => {
 
   try {
     // Verifica se o email já existe no banco (o banco também não aceita mais de um e-mail igual, dupla precaução)
-    const exists = await pool.query("SELECT id FROM users WHERE email = $1", [
+    const exists = await pool.query(`SELECT id FROM users WHERE email = $1`, [
       email,
     ]);
 
     /* Se o e-mail já existe, retorna o log abaixo e interrompe o restante da execução
     Caso não exista, segue o restante da execução*/
     if (exists.rows.length > 0) {
-      return res.status(400).json({ erro: "Email já cadastrado" });
+      return res.status(401).json({ erro: "Email já cadastrado" });
     }
 
     // Pega senha e transforma ela em hash
@@ -112,8 +113,8 @@ router.post("/register", async (req, res) => {
     res.status(201).json({ mensagem: "Usuário criado com sucesso" });
     // Caso ocorra algum erro nesta etapam retorna o status de erro e a mensagem em json
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ erro: "Erro no servidor" });
+    console.error("Erro ao criar cadastro:", err);
+    res.status(500).json({ erro: err.message });
   }
 });
 
@@ -124,7 +125,7 @@ router.get("/me", authMiddleware, async (req, res) => {
   try {
     // Consulta no banco com req.user.id para obter informações do usuario que está fazendo login
     const result = await pool.query(
-      "SELECT u.nome AS usuarioNome, u.sobrenome, u.email, u.id FROM users u WHERE u.id = $1",
+      `SELECT u.nome AS usuarioNome, u.sobrenome, u.email, u.id FROM users u WHERE u.id = $1`,
       [req.user.id],
     );
 
@@ -132,8 +133,8 @@ router.get("/me", authMiddleware, async (req, res) => {
     Lembrando, a consulta pode ter sucesso mas não retornar nenhuma informação*/
     res.json(result.rows);
   } catch (err) {
-    // Em caso de erro, envia a resposta de erro (status 500) mais "Erro ao buscar usuário"
-    res.status(500).json({ erro: "Erro ao buscar usuário" });
+    console.error("Erro ao buscar user:", err);
+    res.status(500).json({ erro: err.message });
   }
 });
 
@@ -142,7 +143,7 @@ router.get("/productsMe", authMiddleware, async (req, res) => {
   try {
     // Consulta no banco com req.user.id, dessa vez, usando o userID da tabela de produtos
     const result = await pool.query(
-      "SELECT p.productid AS idProduto, p.nome AS produtoNome, p.precoDesejado, p.enviarAviso FROM produtos p WHERE p.userID = $1 ORDER by productID",
+      `SELECT p.productid AS idProduto, p.nome AS produtoNome, p.precoDesejado, p.enviarAviso FROM produtos p WHERE p.userID = $1 ORDER by productID`,
       [req.user.id],
     );
 
@@ -150,8 +151,8 @@ router.get("/productsMe", authMiddleware, async (req, res) => {
     Lembrando, a consulta pode ter sucesso mas não retornar nenhuma informação (sem produtos cadastrados)*/
     res.json(result.rows);
   } catch (err) {
-    // Em caso de erro, envia a resposta de erro (status 500) mais "Erro ao buscar produtos do usuario"
-    res.status(500).json({ erro: "Erro ao buscar produtos do usuario" });
+    console.error("Erro ao buscar produtos de user:", err);
+    res.status(500).json({ erro: err.message });
   }
 });
 
@@ -163,15 +164,15 @@ router.post("/delete", authMiddleware, async (req, res) => {
   try {
     // Realiza o delete no banco usando o pool e executando a query abaixo onde $1 assume o valor do ID (isso previne SQL injection)
     const result = await pool.query(
-      "DELETE FROM produtos WHERE productid = $1",
+      `DELETE FROM produtos WHERE productid = $1`,
       [idProduto],
     );
 
     // Em caso de sucesso, envia como resposta o log de sucesso mais mensagem em formato Json
     res.json({ mensagem: "Produto deletado com sucesso" });
   } catch (err) {
-    // Em caso de erro, envia a resposta de erro (status 500) mais "Erro ao deleter produto"
-    res.status(500).json({ erro: "Erro ao deletar produto" });
+    console.error("Erro ao deletar produto:", err);
+    res.status(500).json({ erro: err.message });
   }
 });
 
@@ -181,15 +182,15 @@ router.post("/avisoOff", authMiddleware, async (req, res) => {
 
   try {
     const result = await pool.query(
-      "UPDATE produtos SET enviaraviso = FALSE WHERE productid = $1",
+      `UPDATE produtos SET enviaraviso = FALSE WHERE productid = $1`,
       [idProduto],
     );
 
     // Em caso de sucesso, envia como resposta o log de sucesso mais mensagem em formato Json
     res.json({ mensagem: "Aviso dasativado com sucesso" });
   } catch (err) {
-    // Em caso de erro, envia a resposta de erro (status 500) mais "Erro ao deleter produto"
-    res.status(500).json({ erro: "Erro ao desativar aviso" });
+    console.error("Erro ao desativar aviso:", err);
+    res.status(500).json({ erro: err.message });
   }
 });
 
@@ -199,15 +200,15 @@ router.post("/avisoOn", authMiddleware, async (req, res) => {
 
   try {
     const result = await pool.query(
-      "UPDATE produtos SET enviaraviso = TRUE WHERE productid = $1",
+      `UPDATE produtos SET enviaraviso = TRUE WHERE productid = $1`,
       [idProduto],
     );
 
     // Em caso de sucesso, envia como resposta o log de sucesso mais mensagem em formato Json
     res.json({ mensagem: "Aviso habilitado com sucesso" });
   } catch (err) {
-    // Em caso de erro, envia a resposta de erro (status 500) mais "Erro ao deleter produto"
-    res.status(500).json({ erro: "Erro ao ativar aviso" });
+    console.error("Erro ao ativar aviso", err);
+    res.status(500).json({ erro: err.message });
   }
 });
 
@@ -216,7 +217,7 @@ router.post("/createProdutos", authMiddleware, async (req, res) => {
   const { nome, preco, link } = req.body;
 
   const qtProdutos = await pool.query(
-    "SELECT * FROM produtos WHERE userid = $1;",
+    `SELECT * FROM produtos WHERE userid = $1;`,
     [req.user.id],
   );
 
@@ -229,15 +230,15 @@ router.post("/createProdutos", authMiddleware, async (req, res) => {
   try {
     // Executa a criação de avisos no banco
     const result = await pool.query(
-      "INSERT INTO produtos (UserID, Nome, PrecoDesejado, Link) VALUES ($1, $2, $3, $4)",
+      `INSERT INTO produtos (UserID, Nome, PrecoDesejado, Link) VALUES ($1, $2, $3, $4)`,
       [req.user.id, nome, preco, link],
     );
 
     // Em caso de sucesso, envia como resposta a mensagem de sucesso
     res.json({ mensagem: "Aviso criado com sucesso" });
   } catch (err) {
-    // Em caso de erro, envia a resposta de erro (status 500) mais "Erro ao criar aviso"
-    res.status(500).json({ erro: "Erro ao criar aviso" });
+    console.error("Erro ao criar produto", err);
+    res.status(500).json({ erro: err.message });
   }
 });
 
@@ -250,7 +251,7 @@ router.post("/autenticarDuploFator", async (req, res) => {
   try {
     // Busca pelo 2fa com o ID correspondente no banco
     const result = await pool.query(
-      "SELECT * FROM two_factor_codes WHERE id = $1 AND attempts < 3 AND expires_at > NOW() AND mfa_status = TRUE;",
+      `SELECT * FROM two_factor_codes WHERE id = $1 AND attempts < 3 AND expires_at > NOW() AND mfa_status = TRUE;`,
       [id_2fa],
     );
 
@@ -275,7 +276,7 @@ router.post("/autenticarDuploFator", async (req, res) => {
     // Se o resultado não for TRUE, os códigos não correspondem, altera o número de tentativas restantes no banco e retorna a msg de erro
     if (!autenticar_2fa) {
       const result = await pool.query(
-        "UPDATE two_factor_codes SET attempts = attempts + 1 WHERE id = $1;",
+        `UPDATE two_factor_codes SET attempts = attempts + 1 WHERE id = $1;`,
         [id_2fa],
       );
       return res.status(401).json({ erro: "Codigo invalido" });
@@ -283,7 +284,7 @@ router.post("/autenticarDuploFator", async (req, res) => {
 
     // Se estiver tudo certo, torna o código utilizado invalido (já utilizado)
     await pool.query(
-      "UPDATE two_factor_codes SET mfa_status = FALSE WHERE id = $1;",
+      `UPDATE two_factor_codes SET mfa_status = FALSE WHERE id = $1;`,
       [id_2fa],
     );
 
@@ -317,10 +318,11 @@ router.post("/autenticarDuploFator", async (req, res) => {
       maxAge: 60 * 60 * 1000, // 1 hora
     });
     // retorna msg de sucesso aguardada pelo front
-    res.status(200).json({ sucesso: "Duplo fator autenticado com sucesso" });
+    res.json({ sucesso: "Duplo fator autenticado com sucesso" });
 
     // Caso aconteça alguma falha, mensagem de erro contendo o erro que aconteceu
   } catch (err) {
+    console.error("Erro ao tentar validar duplo fator", err);
     res.status(500).json({ erro: err.message });
   }
 });
@@ -340,7 +342,7 @@ router.post("/logout", (req, res) => {
     sameSite: "Strict",
   });
 
-  res.status(200).json({ mensagem: "Logout realizado com sucesso" });
+  res.json({ mensagem: "Logout realizado com sucesso" });
 });
 
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/deleteUser) usando authMiddleware como explicado mais acima
@@ -348,17 +350,20 @@ router.post("/logout", (req, res) => {
 router.post("/deleteUser", authMiddleware, async (req, res) => {
   try {
     // Executa a desativação de user no banco
-    // Apenas muda o satus para falso, não realiza a exclusão no sentido literal para fins de auditoria
+    // Apenas muda o user_status para "desativado" não realiza a exclusão no sentido literal (no momento) para fins de auditoria
     const result = await pool.query(
-      "UPDATE users SET ativo = FALSE WHERE id = $1",
+      `UPDATE users SET status = 'desativado', datadesativacao = now() WHERE id = $1;`,
       [req.user.id],
     );
 
     // Em caso de sucesso, envia como resposta a mensagem de sucesso
-    res.json({ mensagem: "Usuario deletado com sucesso" });
+    res.json({
+      mensagem:
+        "Usuario desativado com sucesso, seus informações serão excluidas em instantes",
+    });
   } catch (err) {
-    // Em caso de erro, envia a resposta de erro (status 500) mais "Erro ao criar aviso"
-    res.status(500).json({ erro: "Erro ao deletar usuario" });
+    console.error("Erro ao desativar user", err);
+    res.status(500).json({ erro: err.message });
   }
 });
 
