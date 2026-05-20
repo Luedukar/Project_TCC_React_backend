@@ -5,6 +5,10 @@ const pool = require("../config/db");
 const authMiddleware = require("../middleware/authMiddleware");
 const router = express.Router();
 const { sendTwoFactorEmail } = require("../services/emailService");
+const {
+  validarFormatoEmail,
+  validarDominioEmail,
+} = require("../services/checkEmail");
 // Função para o envio do e-mail da autenticação de duplo fator
 async function sendTwoFactorCode(usuario) {
   try {
@@ -85,6 +89,22 @@ router.post("/login", async (req, res) => {
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/register)
 router.post("/register", async (req, res) => {
   const { nome, sobrenome, email, senha, celular, dataNascimento } = req.body;
+
+  // Verifica novamente o formato do e-mail
+  if (!validarFormatoEmail(email)) {
+    return res.status(400).json({
+      erro: "Formato de e-mail inválido",
+    });
+  }
+
+  // Verifica o dominio do e-mail
+  const domainValido = await validarDominioEmail(email);
+
+  if (!domainValido) {
+    return res.status(400).json({
+      erro: "Domínio de e-mail inválido",
+    });
+  }
 
   try {
     // Verifica se o email já existe no banco (o banco também não aceita mais de um e-mail igual, dupla precaução)
@@ -351,7 +371,11 @@ router.post("/deleteUser", authMiddleware, async (req, res) => {
   try {
     // Executa a desativação de user no banco
     // Apenas muda o user_status para "desativado" não realiza a exclusão no sentido literal (no momento) para fins de auditoria
-    const result = await pool.query(
+    const excluirProdutos = await pool.query(
+      `DELETE FROM produtos WHERE userid = $1;`,
+      [req.user.id],
+    );
+    const desativarUser = await pool.query(
       `UPDATE users SET status = 'desativado', datadesativacao = now() WHERE id = $1;`,
       [req.user.id],
     );
