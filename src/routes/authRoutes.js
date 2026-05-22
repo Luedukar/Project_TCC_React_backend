@@ -4,13 +4,16 @@ const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
 const authMiddleware = require("../middleware/authMiddleware");
 const router = express.Router();
-const { sendTwoFactorEmail } = require("../services/emailService");
+const {
+  sendTwoFactorEmail,
+  sendTwoFactorEmailPassword,
+} = require("../services/emailService");
 const {
   validarFormatoEmail,
   validarDominioEmail,
 } = require("../services/checkEmail");
 // Função para o envio do e-mail da autenticação de duplo fator
-async function sendTwoFactorCode(usuario) {
+async function sendTwoFactorCode(usuario, tipo) {
   try {
     // ID do código de duplo fator (enviar também como Cookie)
     const id = Math.floor(100000 + Math.random() * 900000);
@@ -23,13 +26,17 @@ async function sendTwoFactorCode(usuario) {
 
     // Insere o código no banco
     await pool.query(
-      `INSERT INTO two_factor_codes (id, user_id, code, expires_at) VALUES ($1, $2, $3, DATE_ADD(NOW(), INTERVAL '5 minutes'))`,
-      [id, usuario.id, hash],
+      `INSERT INTO two_factor_codes (id, user_id, code, type, expires_at) VALUES ($1, $2, $3, $4, DATE_ADD(NOW(), INTERVAL '5 minutes'))`,
+      [id, usuario.id, hash, tipo],
     );
 
     // usa a função para enviar o e-mail
-    await sendTwoFactorEmail(usuario.email, codigo);
 
+    if (tipo == "2fa") {
+      await sendTwoFactorEmail(usuario.email, codigo);
+    } else if (tipo == "recover") {
+      await sendTwoFactorEmailPassword(usuario.email, codigo);
+    }
     // Retorna ID para salvar em Cookies
     return id;
   } catch (err) {
@@ -67,8 +74,8 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ erro: "Senha inválida" });
     }
 
-    // Gera o duplo fator e recbe como resposta o ID do duplo fator criado
-    const codigo = await sendTwoFactorCode(usuario);
+    // Gera o duplo fator e recebe como resposta o ID do duplo fator criado
+    const codigo = await sendTwoFactorCode(usuario, "2fa");
 
     // Cria e salva o cookie referente ao duplo fator
     res.cookie("id_2fa", codigo, {
@@ -271,7 +278,7 @@ router.post("/autenticarDuploFator", async (req, res) => {
   try {
     // Busca pelo 2fa com o ID correspondente no banco
     const result = await pool.query(
-      `SELECT * FROM two_factor_codes WHERE id = $1 AND attempts < 3 AND expires_at > NOW() AND mfa_status = TRUE;`,
+      `SELECT * FROM two_factor_codes WHERE id = $1 AND attempts < 3 AND expires_at > NOW() AND mfa_status = TRUE AND type = '2fa';`,
       [id_2fa],
     );
 
@@ -366,7 +373,7 @@ router.post("/logout", (req, res) => {
 });
 
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/deleteUser) usando authMiddleware como explicado mais acima
-// Rota para deleter usuarios (em construção)
+// Rota para desativar usuarios
 router.post("/deleteUser", authMiddleware, async (req, res) => {
   try {
     // Executa a desativação de user no banco
@@ -387,6 +394,46 @@ router.post("/deleteUser", authMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error("Erro ao desativar user", err);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+// Cria a rota a ser usado no frontend (http://localhost:3000/auth/emailRecoverPassword)
+// Rota para enviar e-mail de recuperação de senha
+router.post("/emailRecoverPassword", async (req, res) => {
+  // endereço de email insero no corpo da req
+  const email = req.body.email;
+
+  try {
+    //Valida se o e-mail existe no banco e está ativo
+    const result = await pool.query(
+      `SELECT * FROM users WHERE email = $1 AND status = 'ativo'`,
+      [email],
+    );
+
+    //Caso não encontre, retorna erro
+    if (result.rows.length === 0) {
+      return res.status(401).json({ erro: "Usuário não encontrado" });
+    }
+
+    // O banco não permite e-mails iguais, se ele encontrar algo vai ser apenas 1 linha, salva os valores da linha
+    const usuario = result.rows[0];
+
+    // Gera o código para recuperar a senha recebe como resposta o ID do duplo fator criado
+    const codigo = await sendTwoFactorCode(usuario, "recover");
+
+    // Cria e salva o cookie referente a recuperação de senha
+    res.cookie("recoverPassword", codigo, {
+      httpOnly: true,
+      secure: false, // true em produção
+      sameSite: "Strict",
+      maxAge: 5 * 60 * 1000, // 5 minutos (tempo de expiração no banco)
+    });
+    // Status de sucesso para o front (que aguarda resposta)
+    res.json({ sucesso: "e-mail enviado com sucesso" });
+    // Caso aconteça alguma falha, mensagem de erro contendo o erro que aconteceu
+  } catch (err) {
+    console.error("Erro ao gerar código de recuperação:", err);
     res.status(500).json({ erro: err.message });
   }
 });

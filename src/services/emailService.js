@@ -1,5 +1,6 @@
 const nodemailer = require("nodemailer");
 const template_twoFactor = require("./templates/template_twoFactor");
+const template_twoFactorPassword = require("./templates/template_twoFactorPassword");
 
 // Configura o transporte de email
 const transporter = nodemailer.createTransport({
@@ -12,7 +13,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Envia o email
+// Envia o email para duplo fator
 async function sendTwoFactorEmail(to, codigo) {
   await transporter.sendMail({
     from: '"ADM do projeto" <luedukar@gmail.com>',
@@ -23,6 +24,18 @@ async function sendTwoFactorEmail(to, codigo) {
   });
 }
 
+// Envia o email para recuperar senha
+async function sendTwoFactorEmailPassword(to, codigo) {
+  await transporter.sendMail({
+    from: '"ADM do projeto" <luedukar@gmail.com>',
+    to,
+    subject: "Código de recuperação de senha",
+    html: template_twoFactorPassword(codigo), // função com o template de envio
+    text: `Seu código de recuperação de senha é ${codigo}`,
+  });
+}
+
 module.exports = {
   sendTwoFactorEmail,
+  sendTwoFactorEmailPassword,
 };
