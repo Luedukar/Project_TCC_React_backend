@@ -9,7 +9,7 @@ function autenticar(req, res, next) {
     return res.status(401).json({ erro: "Token não informado" });
   }
 
-  // Decodifica o token, salvar as informações e libera seguir
+  // Decodifica o token, salva as informações e libera seguir
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
@@ -22,4 +22,26 @@ function autenticar(req, res, next) {
   }
 }
 
-module.exports = autenticar;
+function autenticar2(req, res, next) {
+  // Acessar cookies
+  const token = req.cookies.Redefinicao;
+
+  // Valida se foi encontrado o token nos cookies
+  if (!token) {
+    return res.status(401).json({ erro: "Token não informado" });
+  }
+
+  // Decodifica o token, salva as informações e libera seguir
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    req.user = decoded;
+
+    next();
+    // Em caso de erro, esse bloco é usado
+  } catch (err) {
+    return res.status(401).json({ erro: "Token inválido" });
+  }
+}
+
+module.exports = { autenticar, autenticar2 };

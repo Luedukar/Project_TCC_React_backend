@@ -2,7 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
-const authMiddleware = require("../middleware/authMiddleware");
+const { autenticar, autenticar2 } = require("../middleware/authMiddleware");
 const router = express.Router();
 const {
   sendTwoFactorEmail,
@@ -148,7 +148,7 @@ router.post("/register", async (req, res) => {
 /* Acessado pela rota /me (http://localhost:3000/auth/me), chama a função authMiddleware que valida e decodifica o token presente nos cookies 
 retorna se foi sucesso ou falha, em caso de sucesso libera seguir e também req.user
 em caso de falha impede de seguir de seguir e retorna código de falha */
-router.get("/me", authMiddleware, async (req, res) => {
+router.get("/me", autenticar, async (req, res) => {
   try {
     // Consulta no banco com req.user.id para obter informações do usuario que está fazendo login
     const result = await pool.query(
@@ -166,7 +166,7 @@ router.get("/me", authMiddleware, async (req, res) => {
 });
 
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/productsMe) usando authMiddleware da mesma forma que a rota acima
-router.get("/productsMe", authMiddleware, async (req, res) => {
+router.get("/productsMe", autenticar, async (req, res) => {
   try {
     // Consulta no banco com req.user.id, dessa vez, usando o userID da tabela de produtos
     const result = await pool.query(
@@ -184,7 +184,7 @@ router.get("/productsMe", authMiddleware, async (req, res) => {
 });
 
 // Acessa a rota /delete através de http://localhost:3000/auth/delete
-router.post("/delete", authMiddleware, async (req, res) => {
+router.post("/delete", autenticar, async (req, res) => {
   // A req recebida possui um body, que é justamente a informação necessaria, o ID do produto a ser excluido
   const { idProduto } = req.body;
 
@@ -204,7 +204,7 @@ router.post("/delete", authMiddleware, async (req, res) => {
 });
 
 // Acessa a rota /avsiOff através de http://localhost:3000/auth/avisoOff
-router.post("/avisoOff", authMiddleware, async (req, res) => {
+router.post("/avisoOff", autenticar, async (req, res) => {
   const { idProduto } = req.body;
 
   try {
@@ -222,7 +222,7 @@ router.post("/avisoOff", authMiddleware, async (req, res) => {
 });
 
 // Acessa a rota /avsiOff através de http://localhost:3000/auth/avisoOn
-router.post("/avisoOn", authMiddleware, async (req, res) => {
+router.post("/avisoOn", autenticar, async (req, res) => {
   const { idProduto } = req.body;
 
   try {
@@ -239,8 +239,8 @@ router.post("/avisoOn", authMiddleware, async (req, res) => {
   }
 });
 
-// Cria a rota a ser usado no frontend (http://localhost:3000/auth/createProdutos) usando authMiddleware como explicado mais acima
-router.post("/createProdutos", authMiddleware, async (req, res) => {
+// Cria a rota a ser usado no frontend (http://localhost:3000/auth/createProdutos) usando autenticar como explicado mais acima
+router.post("/createProdutos", autenticar, async (req, res) => {
   const { nome, preco, link } = req.body;
 
   const qtProdutos = await pool.query(
@@ -355,7 +355,7 @@ router.post("/autenticarDuploFator", async (req, res) => {
 });
 
 // Validar Cookie assinado, caso ok, libera a rota do contrario impede acesso a rota
-router.get("/protect", authMiddleware, (req, res) => {
+router.get("/protect", autenticar, (req, res) => {
   res.json({
     usuario: req.user,
   });
@@ -372,9 +372,9 @@ router.post("/logout", (req, res) => {
   res.json({ mensagem: "Logout realizado com sucesso" });
 });
 
-// Cria a rota a ser usado no frontend (http://localhost:3000/auth/deleteUser) usando authMiddleware como explicado mais acima
+// Cria a rota a ser usado no frontend (http://localhost:3000/auth/deleteUser) usando autenticar como explicado mais acima
 // Rota para desativar usuarios
-router.post("/deleteUser", authMiddleware, async (req, res) => {
+router.post("/deleteUser", autenticar, async (req, res) => {
   try {
     // Executa a desativação de user no banco
     // Apenas muda o user_status para "desativado" não realiza a exclusão no sentido literal (no momento) para fins de auditoria
@@ -435,6 +435,124 @@ router.post("/emailRecoverPassword", async (req, res) => {
   } catch (err) {
     console.error("Erro ao gerar código de recuperação:", err);
     res.status(500).json({ erro: err.message });
+  }
+});
+
+// Cria a rota a ser usado no frontend (http://localhost:3000/auth/autenticarDuploFatorSenha)
+router.post("/autenticarDuploFatorSenha", async (req, res) => {
+  // Salva o token obtido via Cookies e o código enviado via corpo da req
+  const id_2fa = req.cookies.recoverPassword;
+  const codigoInserido = req.body.codigoInserido;
+
+  try {
+    // Busca pelo 2fa com o ID correspondente no banco
+    const result = await pool.query(
+      `SELECT * FROM two_factor_codes WHERE id = $1 AND attempts < 3 AND expires_at > NOW() AND mfa_status = TRUE AND type = 'recover';`,
+      [id_2fa],
+    );
+
+    // Se o retorno for 0 (zero linhas encontradas) o 2fa deste código é invalido (expirado ou inexistente), envia o erro e encerrar o bloco com o return
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        erro: "Erro ao identificar código, tente gerar um novo código",
+      });
+    }
+
+    // Será encontrado somente um resultado
+    const validar_2fa = result.rows[0];
+
+    /* Compara nosso valor senha obtido através do front com o valor obtido do banco, 
+    no banco a senha é um hash, então ele converte a senha do front em hash (mesma logica aplicada para sair o mesmo resultado)
+    e então faz a comparação */
+    const autenticar_2fa = await bcrypt.compare(
+      codigoInserido,
+      validar_2fa.code,
+    );
+
+    // Se o resultado não for TRUE, os códigos não correspondem, altera o número de tentativas restantes no banco e retorna a msg de erro
+    if (!autenticar_2fa) {
+      const result = await pool.query(
+        `UPDATE two_factor_codes SET attempts = attempts + 1 WHERE id = $1;`,
+        [id_2fa],
+      );
+      return res.status(401).json({ erro: "Codigo invalido" });
+    }
+
+    // Se estiver tudo certo, torna o código utilizado invalido (já utilizado)
+    await pool.query(
+      `UPDATE two_factor_codes SET mfa_status = FALSE WHERE id = $1;`,
+      [id_2fa],
+    );
+
+    //limpa Cookie contendo o código do 2fa
+    res.clearCookie("id_2fa", {
+      httpOnly: true,
+      secure: false, // true em produção (HTTPS)
+      sameSite: "Strict",
+    });
+
+    // Gera o token assinado de login
+    const Redefinicao = jwt.sign(
+      { idRedefinicao: validar_2fa.user_id },
+      process.env.JWT_SECRET,
+      { expiresIn: "5 minutes" },
+    );
+
+    // Cria e salva o Cookie de login
+    res.cookie("Redefinicao", Redefinicao, {
+      httpOnly: true,
+      secure: true, // true em produção
+      sameSite: "Strict",
+      maxAge: 5 * 60 * 1000, // 5 minutos (tempo de expiração no banco)
+    });
+    // retorna msg de sucesso aguardada pelo front
+    res.json({ sucesso: "Código de redefinição validado com sucesso" });
+
+    // Caso aconteça alguma falha, mensagem de erro contendo o erro que aconteceu
+  } catch (err) {
+    console.error("Erro ao tentar validar código", err);
+    res.status(500).json({
+      erro: "Erro ao validar código de redefinição de senha, tente novamente",
+    });
+  }
+});
+
+// Cria a rota a ser usado no frontend (http://localhost:3000/auth/RedefinirSenha)
+router.post("/RedefinirPassword", autenticar2, async (req, res) => {
+  console.log(
+    "Redefinição de senha utilizada para user de id",
+    req.user.idRedefinicao,
+  );
+  const NewPassword = req.body.NovaSenha;
+  const hash = await bcrypt.hash(NewPassword, 10);
+
+  try {
+    const result = await pool.query(
+      `UPDATE users SET senha = $1 WHERE id = $2;`,
+      [hash, req.user.idRedefinicao],
+    );
+
+    //limpa Cookie contendo o código do 2fa
+    res.clearCookie("Redefinicao", {
+      httpOnly: true,
+      secure: false, // true em produção (HTTPS)
+      sameSite: "Strict",
+    });
+
+    console.log(
+      "Senha alterado com sucesso para user com id: ",
+      req.user.idRedefinicao,
+    );
+    res.json({ sucesso: "Senha redefinida com sucesso" });
+  } catch (err) {
+    console.log(
+      "Falha ao redefinir senha para user de id: ",
+      req.user.idRedefinicao,
+    );
+    console.log(err);
+    res.status(500).json({
+      erro: "Erro ao tentar redefinir a senha",
+    });
   }
 });
 
