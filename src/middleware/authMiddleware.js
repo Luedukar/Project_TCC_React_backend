@@ -1,47 +1,36 @@
 const jwt = require("jsonwebtoken");
 
-function autenticar(req, res, next) {
-  // Acessar cookies
-  const token = req.cookies.token;
+// Função contendo o Middleware a ser utilizado, recebe o JWT que deve ser buscado e a assinatura a usar
+function criarMiddleware(nomeCookie, assinatura) {
+  return function (req, res, next) {
+    // Recupera o Token dos cookies
+    const token = req.cookies[nomeCookie];
 
-  // Valida se foi encontrado o token nos cookies
-  if (!token) {
-    return res.status(401).json({ erro: "Token não informado" });
-  }
+    // Se o Token não for encontrado, retorna erro
+    if (!token) {
+      return res.status(401).json({ erro: "Token não informado" });
+    }
 
-  // Decodifica o token, salva as informações e libera seguir
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Valida a assinatura e decodifica o Token
+    try {
+      const decoded = jwt.verify(token, assinatura);
 
-    req.user = decoded;
+      //Permite usar o conteudo decodificado
+      req.user = decoded;
 
-    next();
-    // Em caso de erro, esse bloco é usado
-  } catch (err) {
-    return res.status(401).json({ erro: "Token inválido" });
-  }
+      //Libera seguir
+      next();
+    } catch (err) {
+      //Caso Não sejá possivel autenticar
+      console.log("Falha ao autenticar Token: ", err);
+      return res.status(401).json({ erro: "Token inválido" });
+    }
+  };
 }
 
-function autenticar2(req, res, next) {
-  // Acessar cookies
-  const token = req.cookies.Redefinicao;
+//Criar Token de login
+const autenticar = criarMiddleware("token", process.env.JWT_SECRET);
+// Cria Token de redefinição de senha
+const autenticarReset = criarMiddleware("Redefinicao", process.env.JWT_SECRET2);
 
-  // Valida se foi encontrado o token nos cookies
-  if (!token) {
-    return res.status(401).json({ erro: "Token não informado" });
-  }
-
-  // Decodifica o token, salva as informações e libera seguir
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    req.user = decoded;
-
-    next();
-    // Em caso de erro, esse bloco é usado
-  } catch (err) {
-    return res.status(401).json({ erro: "Token inválido" });
-  }
-}
-
-module.exports = { autenticar, autenticar2 };
+module.exports = { autenticar, autenticarReset };

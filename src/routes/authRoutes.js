@@ -2,7 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
-const { autenticar, autenticar2 } = require("../middleware/authMiddleware");
+const { autenticar, autenticarReset } = require("../middleware/authMiddleware");
 const router = express.Router();
 const {
   sendTwoFactorEmail,
@@ -12,6 +12,7 @@ const {
   validarFormatoEmail,
   validarDominioEmail,
 } = require("../services/checkEmail");
+const limparCookie = require("../services/jwtService");
 // Função para o envio do e-mail da autenticação de duplo fator
 async function sendTwoFactorCode(usuario, tipo) {
   try {
@@ -59,7 +60,9 @@ router.post("/login", async (req, res) => {
 
     // Se o retorno for 0 (zero linhas encontradas) ele não encontrou esse e-mail no banco, envia o erro e encerrar o bloco com o return
     if (result.rows.length === 0) {
-      return res.status(401).json({ erro: "Usuário não encontrado" });
+      return res
+        .status(401)
+        .json({ erro: "Nome de usuário ou senha inválidos" });
     }
 
     // O banco não permite e-mails iguais, se ele encontrar algo vai ser apenas 1 linha, salva os valores da linha
@@ -71,7 +74,9 @@ router.post("/login", async (req, res) => {
 
     // Se o resultado não for TRUE, as senhas não são iguais (senha errada), retorna a msg de erro e impede o bloco de seguir usando o return
     if (!senhaValida) {
-      return res.status(401).json({ erro: "Senha inválida" });
+      return res
+        .status(401)
+        .json({ erro: "Nome de usuário ou senha inválidos" });
     }
 
     // Gera o duplo fator e recebe como resposta o ID do duplo fator criado
@@ -89,7 +94,9 @@ router.post("/login", async (req, res) => {
     // Caso aconteça alguma falha, mensagem de erro contendo o erro que aconteceu
   } catch (err) {
     console.error("Erro no login:", err);
-    res.status(500).json({ erro: err.message });
+    res.status(500).json({
+      erro: "Falha ao tentar realizar login, por favor tente novamente",
+    });
   }
 });
 
@@ -122,7 +129,7 @@ router.post("/register", async (req, res) => {
     /* Se o e-mail já existe, retorna o log abaixo e interrompe o restante da execução
     Caso não exista, segue o restante da execução*/
     if (exists.rows.length > 0) {
-      return res.status(401).json({ erro: "Email já cadastrado" });
+      return res.status(401).json({ erro: "E-mail já cadastrado" });
     }
 
     // Pega senha e transforma ela em hash
@@ -141,7 +148,9 @@ router.post("/register", async (req, res) => {
     // Caso ocorra algum erro nesta etapam retorna o status de erro e a mensagem em json
   } catch (err) {
     console.error("Erro ao criar cadastro:", err);
-    res.status(500).json({ erro: err.message });
+    res.status(500).json({
+      erro: "Falha ao tentar criar usuário, por favor tente novamente",
+    });
   }
 });
 
@@ -161,7 +170,9 @@ router.get("/me", autenticar, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error("Erro ao buscar user:", err);
-    res.status(500).json({ erro: err.message });
+    res.status(500).json({
+      erro: "Falha ao buscar suas informações, por favor tente recarregar a página",
+    });
   }
 });
 
@@ -179,7 +190,9 @@ router.get("/productsMe", autenticar, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error("Erro ao buscar produtos de user:", err);
-    res.status(500).json({ erro: err.message });
+    res.status(500).json({
+      erro: "Falha ao buscar seus produtos, por favor tente recarregar a página",
+    });
   }
 });
 
@@ -199,7 +212,9 @@ router.post("/delete", autenticar, async (req, res) => {
     res.json({ mensagem: "Produto deletado com sucesso" });
   } catch (err) {
     console.error("Erro ao deletar produto:", err);
-    res.status(500).json({ erro: err.message });
+    res
+      .status(500)
+      .json({ erro: "Falha ao deletar produto, por favor tente novamente" });
   }
 });
 
@@ -217,7 +232,9 @@ router.post("/avisoOff", autenticar, async (req, res) => {
     res.json({ mensagem: "Aviso dasativado com sucesso" });
   } catch (err) {
     console.error("Erro ao desativar aviso:", err);
-    res.status(500).json({ erro: err.message });
+    res
+      .status(500)
+      .json({ erro: "Falha ao desativar aviso, por favor tente novamente" });
   }
 });
 
@@ -235,7 +252,9 @@ router.post("/avisoOn", autenticar, async (req, res) => {
     res.json({ mensagem: "Aviso habilitado com sucesso" });
   } catch (err) {
     console.error("Erro ao ativar aviso", err);
-    res.status(500).json({ erro: err.message });
+    res
+      .status(500)
+      .json({ erro: "Falha ao ativar aviso, por favor tente novamente" });
   }
 });
 
@@ -265,7 +284,9 @@ router.post("/createProdutos", autenticar, async (req, res) => {
     res.json({ mensagem: "Aviso criado com sucesso" });
   } catch (err) {
     console.error("Erro ao criar produto", err);
-    res.status(500).json({ erro: err.message });
+    res
+      .status(500)
+      .json({ erro: "Falha ao criar aviso, por favor tente novamente" });
   }
 });
 
@@ -322,11 +343,7 @@ router.post("/autenticarDuploFator", async (req, res) => {
     );
 
     //limpa Cookie contendo o código do 2fa
-    res.clearCookie("id_2fa", {
-      httpOnly: true,
-      secure: false, // true em produção (HTTPS)
-      sameSite: "Strict",
-    });
+    limparCookie(res, "id_2fa");
 
     const usuario = result_user.rows[0];
 
@@ -350,7 +367,9 @@ router.post("/autenticarDuploFator", async (req, res) => {
     // Caso aconteça alguma falha, mensagem de erro contendo o erro que aconteceu
   } catch (err) {
     console.error("Erro ao tentar validar duplo fator", err);
-    res.status(500).json({ erro: err.message });
+    res.status(500).json({
+      erro: "Falha ao validar duplo fator, por favor tente novamente",
+    });
   }
 });
 
@@ -363,12 +382,7 @@ router.get("/protect", autenticar, (req, res) => {
 
 //Excluir token de login (realizar logout)
 router.post("/logout", (req, res) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: false, // true em produção (HTTPS)
-    sameSite: "Strict",
-  });
-
+  limparCookie(res, "token");
   res.json({ mensagem: "Logout realizado com sucesso" });
 });
 
@@ -390,11 +404,13 @@ router.post("/deleteUser", autenticar, async (req, res) => {
     // Em caso de sucesso, envia como resposta a mensagem de sucesso
     res.json({
       mensagem:
-        "Usuario desativado com sucesso, seus informações serão excluidas em instantes",
+        "Usuário desativado com sucesso, seus informações serão excluidas em instantes",
     });
   } catch (err) {
     console.error("Erro ao desativar user", err);
-    res.status(500).json({ erro: err.message });
+    res
+      .status(500)
+      .json({ erro: "Falha ao deletar usuário, por favor tente novamente" });
   }
 });
 
@@ -430,11 +446,13 @@ router.post("/emailRecoverPassword", async (req, res) => {
       maxAge: 5 * 60 * 1000, // 5 minutos (tempo de expiração no banco)
     });
     // Status de sucesso para o front (que aguarda resposta)
-    res.json({ sucesso: "e-mail enviado com sucesso" });
+    res.json({ sucesso: "E-mail enviado com sucesso" });
     // Caso aconteça alguma falha, mensagem de erro contendo o erro que aconteceu
   } catch (err) {
     console.error("Erro ao gerar código de recuperação:", err);
-    res.status(500).json({ erro: err.message });
+    res
+      .status(500)
+      .json({ erro: "Falha ao gerar código, por favor tente novamente" });
   }
 });
 
@@ -484,17 +502,13 @@ router.post("/autenticarDuploFatorSenha", async (req, res) => {
       [id_2fa],
     );
 
-    //limpa Cookie contendo o código do 2fa
-    res.clearCookie("id_2fa", {
-      httpOnly: true,
-      secure: false, // true em produção (HTTPS)
-      sameSite: "Strict",
-    });
+    //limpa Cookie contendo o código do 2fa para recuperação de senha
+    limparCookie(res, "recoverPassword");
 
-    // Gera o token assinado de login
+    // Gera o token assinado para a redefinição de senha
     const Redefinicao = jwt.sign(
       { idRedefinicao: validar_2fa.user_id },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET2,
       { expiresIn: "5 minutes" },
     );
 
@@ -518,13 +532,12 @@ router.post("/autenticarDuploFatorSenha", async (req, res) => {
 });
 
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/RedefinirSenha)
-router.post("/RedefinirPassword", autenticar2, async (req, res) => {
+router.post("/RedefinirPassword", autenticarReset, async (req, res) => {
   console.log(
     "Redefinição de senha utilizada para user de id",
     req.user.idRedefinicao,
   );
-  const NewPassword = req.body.NovaSenha;
-  const hash = await bcrypt.hash(NewPassword, 10);
+  const hash = await bcrypt.hash(req.body.NovaSenha, 10);
 
   try {
     const result = await pool.query(
@@ -533,11 +546,7 @@ router.post("/RedefinirPassword", autenticar2, async (req, res) => {
     );
 
     //limpa Cookie contendo o código do 2fa
-    res.clearCookie("Redefinicao", {
-      httpOnly: true,
-      secure: false, // true em produção (HTTPS)
-      sameSite: "Strict",
-    });
+    limparCookie(res, "Redefinicao");
 
     console.log(
       "Senha alterado com sucesso para user com id: ",
@@ -548,10 +557,11 @@ router.post("/RedefinirPassword", autenticar2, async (req, res) => {
     console.log(
       "Falha ao redefinir senha para user de id: ",
       req.user.idRedefinicao,
+      "erro: ",
+      err,
     );
-    console.log(err);
     res.status(500).json({
-      erro: "Erro ao tentar redefinir a senha",
+      erro: "Erro ao tentar redefinir a senha, por favor tente novamente",
     });
   }
 });
