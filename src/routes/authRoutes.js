@@ -267,7 +267,7 @@ router.post("/createProdutos", autenticar, async (req, res) => {
     [req.user.id],
   );
 
-  if (qtProdutos.rows.length >= 3) {
+  if (qtProdutos.rows.length >= 10) {
     return res.status(401).json({
       erro: "Você tem 10 avisos criados, exclua ao menos 1 para criar um novo",
     });
@@ -401,7 +401,8 @@ router.post("/deleteUser", autenticar, async (req, res) => {
       [req.user.id],
     );
 
-    // Em caso de sucesso, envia como resposta a mensagem de sucesso
+    // Em caso de sucesso, gera log e envia como resposta a mensagem de sucesso
+    console.log("Desativado user de id: ", req.user.id);
     res.json({
       mensagem:
         "Usuário desativado com sucesso, seus informações serão excluidas em instantes",
