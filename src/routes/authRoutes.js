@@ -5,51 +5,13 @@ const pool = require("../config/db");
 const { autenticar, autenticarReset } = require("../middleware/authMiddleware");
 const router = express.Router();
 const {
-  sendTwoFactorEmail,
-  sendTwoFactorEmailPassword,
-} = require("../services/emailService");
-const {
   validarFormatoEmail,
   validarDominioEmail,
 } = require("../services/checkEmail");
-const limparCookie = require("../services/jwtService");
-const crypto = require("crypto");
+const { limparCookie, sendTwoFactorCode } = require("../services/jwtService");
 
 // True para produção e False para dev
 const isProduction = false;
-
-// Função para o envio do e-mail da autenticação de duplo fator
-async function sendTwoFactorCode(usuario, tipo) {
-  try {
-    // ID do código de duplo fator (enviar também como Cookie)
-    const id = crypto.randomUUID();
-
-    // Código do duplo fator (enviar somente esse por e-mail)
-    const codigo = crypto.randomInt(100000, 999999);
-
-    // Conversão do código do duplo fator para hash (enviar somente esse ao banco)
-    const hash = await bcrypt.hash(codigo.toString(), 10);
-
-    // Insere o código no banco
-    await pool.query(
-      `INSERT INTO two_factor_codes (id, user_id, code, type, expires_at) VALUES ($1, $2, $3, $4, DATE_ADD(NOW(), INTERVAL '5 minutes'))`,
-      [id, usuario.id, hash, tipo],
-    );
-
-    // usa a função para enviar o e-mail
-
-    if (tipo == "2fa") {
-      await sendTwoFactorEmail(usuario.email, codigo);
-    } else if (tipo == "recover") {
-      await sendTwoFactorEmailPassword(usuario.email, codigo);
-    }
-    // Retorna ID para salvar em Cookies
-    return id;
-  } catch (err) {
-    console.error("Erro ao enviar código de dois fatores:", err);
-    throw err; // Lança o erro para ser tratado na rota
-  }
-}
 
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/login)
 router.post("/login", async (req, res) => {
@@ -348,7 +310,7 @@ router.post("/autenticarDuploFator", async (req, res) => {
     );
 
     //limpa Cookie contendo o código do 2fa
-    limparCookie(res, "id_2fa");
+    limparCookie(res, "id_2fa", isProduction);
 
     const usuario = result_user.rows[0];
 
@@ -387,7 +349,7 @@ router.get("/protect", autenticar, (req, res) => {
 
 //Excluir token de login (realizar logout)
 router.post("/logout", (req, res) => {
-  limparCookie(res, "token");
+  limparCookie(res, "token", isProduction);
   res.json({ mensagem: "Logout realizado com sucesso" });
 });
 
@@ -509,7 +471,7 @@ router.post("/autenticarDuploFatorSenha", async (req, res) => {
     );
 
     //limpa Cookie contendo o código do 2fa para recuperação de senha
-    limparCookie(res, "recoverPassword");
+    limparCookie(res, "recoverPassword", isProduction);
 
     // Gera o token assinado para a redefinição de senha
     const Redefinicao = jwt.sign(
@@ -552,7 +514,7 @@ router.post("/RedefinirPassword", autenticarReset, async (req, res) => {
     );
 
     //limpa Cookie contendo o código do 2fa
-    limparCookie(res, "Redefinicao");
+    limparCookie(res, "Redefinicao", isProduction);
 
     console.log(
       "Senha alterado com sucesso para user com id: ",
