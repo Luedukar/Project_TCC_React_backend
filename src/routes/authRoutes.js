@@ -13,14 +13,19 @@ const {
   validarDominioEmail,
 } = require("../services/checkEmail");
 const limparCookie = require("../services/jwtService");
+const crypto = require("crypto");
+
+// True para produção e False para dev
+const isProduction = false;
+
 // Função para o envio do e-mail da autenticação de duplo fator
 async function sendTwoFactorCode(usuario, tipo) {
   try {
     // ID do código de duplo fator (enviar também como Cookie)
-    const id = Math.floor(100000 + Math.random() * 900000);
+    const id = crypto.randomUUID();
 
     // Código do duplo fator (enviar somente esse por e-mail)
-    const codigo = Math.floor(100000 + Math.random() * 900000);
+    const codigo = crypto.randomInt(100000, 999999);
 
     // Conversão do código do duplo fator para hash (enviar somente esse ao banco)
     const hash = await bcrypt.hash(codigo.toString(), 10);
@@ -85,7 +90,7 @@ router.post("/login", async (req, res) => {
     // Cria e salva o cookie referente ao duplo fator
     res.cookie("id_2fa", codigo, {
       httpOnly: true,
-      secure: false, // true em produção
+      secure: isProduction, // true em produção
       sameSite: "Strict",
       maxAge: 5 * 60 * 1000, // 5 minutos (tempo de expiração no banco)
     });
@@ -357,7 +362,7 @@ router.post("/autenticarDuploFator", async (req, res) => {
     // Cria e salva o Cookie de login
     res.cookie("token", token, {
       httpOnly: true,
-      secure: true, // true em produção
+      secure: isProduction, // true em produção
       sameSite: "Strict",
       maxAge: 60 * 60 * 1000, // 1 hora
     });
@@ -442,7 +447,7 @@ router.post("/emailRecoverPassword", async (req, res) => {
     // Cria e salva o cookie referente a recuperação de senha
     res.cookie("recoverPassword", codigo, {
       httpOnly: true,
-      secure: false, // true em produção
+      secure: isProduction, // true em produção
       sameSite: "Strict",
       maxAge: 5 * 60 * 1000, // 5 minutos (tempo de expiração no banco)
     });
@@ -516,7 +521,7 @@ router.post("/autenticarDuploFatorSenha", async (req, res) => {
     // Cria e salva o Cookie de login
     res.cookie("Redefinicao", Redefinicao, {
       httpOnly: true,
-      secure: true, // true em produção
+      secure: isProduction, // true em produção
       sameSite: "Strict",
       maxAge: 5 * 60 * 1000, // 5 minutos (tempo de expiração no banco)
     });
