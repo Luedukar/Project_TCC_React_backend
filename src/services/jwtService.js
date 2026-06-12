@@ -15,7 +15,7 @@ async function limparCookie(res, cookie, isProduction) {
 }
 
 // Função para o envio do e-mail da autenticação de duplo fator
-async function sendTwoFactorCode(usuario, tipo) {
+async function sendTwoFactorCode(usuario, tipo, antigo = null) {
   try {
     // ID do código de duplo fator (enviar também como Cookie)
     const id = crypto.randomUUID();
@@ -27,10 +27,23 @@ async function sendTwoFactorCode(usuario, tipo) {
     const hash = await bcrypt.hash(codigo.toString(), 10);
 
     // Insere o código no banco
-    await pool.query(
-      `INSERT INTO two_factor_codes (id, user_id, code, type, expires_at) VALUES ($1, $2, $3, $4, DATE_ADD(NOW(), INTERVAL '5 minutes'))`,
-      [id, usuario.id, hash, tipo],
-    );
+    if (antigo == null) {
+      await pool.query(
+        `INSERT INTO two_factor_codes (id, user_id, code, type, expires_at) VALUES ($1, $2, $3, $4, DATE_ADD(NOW(), INTERVAL '5 minutes'))`,
+        [id, usuario.id, hash, tipo],
+      );
+    } else {
+      await pool.query(
+        `UPDATE two_factor_codes SET
+        id = $1,
+        code = $2,
+        attempts = 0,
+        expires_at = NOW() + INTERVAL '5 minutes',
+        resend_count = resend_count + 1
+        WHERE id = $3;`,
+        [id, hash, antigo],
+      );
+    }
 
     // usa a função para enviar o e-mail
     if (tipo == "2fa") {

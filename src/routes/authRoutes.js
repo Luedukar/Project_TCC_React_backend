@@ -534,4 +534,46 @@ router.post("/RedefinirPassword", autenticarReset, async (req, res) => {
   }
 });
 
+//Cria a rota a ser usado no frontend (http://localhost:3000/auth/Renvio)
+router.post("/Reenviar", async (req, res) => {
+  // ID_2fa antigo para validação e substituição do código
+  const id_2fa = req.cookies.id_2fa;
+
+  try {
+    //Impede de seguir sem um código valido
+    if (!id_2fa) {
+      return res.status(401).json({ erro: "Nenhum token informado" });
+    }
+    //Consulta no banco o Token atual e retorna o ID do user
+    const user_code = await pool.query(
+      `SELECT user_id FROM two_factor_codes WHERE id = $1;`,
+      [id_2fa],
+    );
+    // Salva as informações da consulta acima
+    const id_user = user_code.rows[0];
+    // Busca email do user para reenvio
+    const result = await pool.query(
+      `SELECT email FROM users WHERE id = $1 AND status = 'ativo'`,
+      [id_user.user_id],
+    );
+    // Salva as informações da consulta acima
+    const usuario = result.rows[0];
+    // Gera o 2fa novamente mas substitui na tabela ao invez de criar novo e adiciona +1 na contagem de reenvio
+    const codigo = await sendTwoFactorCode(usuario, "2fa", id_2fa);
+    // Cria e salva o cookie referente ao duplo fator
+    res.cookie("id_2fa", codigo, {
+      httpOnly: true,
+      secure: isProduction, // true em produção
+      sameSite: "Strict",
+      maxAge: 5 * 60 * 1000, // 5 minutos (tempo de expiração no banco)
+    });
+    //Mensagem de sucesso
+    res.json({ sucesso: "Sucesso" });
+  } catch (err) {
+    //Em caso de erro
+    console.log("Erro ao reenviar duplo fator: ", err);
+    res.status(500).json({ erro: "Falha ao reenviar duplo fator" });
+  }
+});
+
 module.exports = router;
