@@ -407,7 +407,7 @@ router.post("/emailRecoverPassword", async (req, res) => {
     const codigo = await sendTwoFactorCode(usuario, "recover");
 
     // Cria e salva o cookie referente a recuperação de senha
-    res.cookie("recoverPassword", codigo, {
+    res.cookie("id_2fa", codigo, {
       httpOnly: true,
       secure: isProduction, // true em produção
       sameSite: "Strict",
@@ -427,7 +427,7 @@ router.post("/emailRecoverPassword", async (req, res) => {
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/autenticarDuploFatorSenha)
 router.post("/autenticarDuploFatorSenha", async (req, res) => {
   // Salva o token obtido via Cookies e o código enviado via corpo da req
-  const id_2fa = req.cookies.recoverPassword;
+  const id_2fa = req.cookies.id_2fa;
   const codigoInserido = req.body.codigoInserido;
 
   try {
@@ -545,21 +545,34 @@ router.post("/Reenviar", async (req, res) => {
       return res.status(401).json({ erro: "Nenhum token informado" });
     }
     //Consulta no banco o Token atual e retorna o ID do user
-    const user_code = await pool.query(
-      `SELECT user_id FROM two_factor_codes WHERE id = $1;`,
+    const result = await pool.query(
+      `SELECT
+      t.id as id_antigo,
+      t.user_id as id,
+      t.type,
+      u.email
+      FROM two_factor_codes t
+      INNER JOIN users u
+      ON t.user_id = u.id 
+      WHERE attempts < 3 AND expires_at > NOW() AND mfa_status = TRUE AND t.id = $1
+      ORDER BY t.id;`,
       [id_2fa],
     );
-    // Salva as informações da consulta acima
-    const id_user = user_code.rows[0];
-    // Busca email do user para reenvio
-    const result = await pool.query(
-      `SELECT email FROM users WHERE id = $1 AND status = 'ativo'`,
-      [id_user.user_id],
-    );
-    // Salva as informações da consulta acima
-    const usuario = result.rows[0];
+    //Caso as informações não sejam encontradas
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        erro: "Usuário não encontrado",
+      });
+    }
+    // Salva as informações da consulta
+    const user_info = result.rows[0];
+
     // Gera o 2fa novamente mas substitui na tabela ao invez de criar novo e adiciona +1 na contagem de reenvio
-    const codigo = await sendTwoFactorCode(usuario, "2fa", id_2fa);
+    const codigo = await sendTwoFactorCode(
+      user_info,
+      user_info.type,
+      user_info.id_antigo,
+    );
     // Cria e salva o cookie referente ao duplo fator
     res.cookie("id_2fa", codigo, {
       httpOnly: true,
