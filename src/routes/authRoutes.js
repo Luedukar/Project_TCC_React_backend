@@ -550,6 +550,7 @@ router.post("/Reenviar", async (req, res) => {
       t.id as id_antigo,
       t.user_id as id,
       t.type,
+      t.resend_count,
       u.email
       FROM two_factor_codes t
       INNER JOIN users u
@@ -560,12 +561,18 @@ router.post("/Reenviar", async (req, res) => {
     );
     //Caso as informações não sejam encontradas
     if (result.rowCount === 0) {
-      return res.status(404).json({
-        erro: "Usuário não encontrado",
+      return res.status(401).json({
+        erro: "Não foi possivel recuperar suas informações",
       });
     }
     // Salva as informações da consulta
     const user_info = result.rows[0];
+
+    if (user_info.resend_count >= 3) {
+      return res.status(401).json({
+        erro: "Limite maximo de reenvios atingido, tente novamente mais tarde",
+      });
+    }
 
     // Gera o 2fa novamente mas substitui na tabela ao invez de criar novo e adiciona +1 na contagem de reenvio
     const codigo = await sendTwoFactorCode(
