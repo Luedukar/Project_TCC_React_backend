@@ -551,6 +551,7 @@ router.post("/Reenviar", async (req, res) => {
       t.user_id as id,
       t.type,
       t.resend_count,
+      t.last_send_at,
       u.email
       FROM two_factor_codes t
       INNER JOIN users u
@@ -574,6 +575,17 @@ router.post("/Reenviar", async (req, res) => {
       });
     }
 
+    const secondsPassed = Math.floor(
+      (Date.now() - new Date(user_info.last_send_at)) / 1000,
+    );
+
+    if (secondsPassed < 60) {
+      return res.status(429).json({
+        erro: "Aguarde antes de reenviar",
+        retryAfter: 60 - secondsPassed,
+      });
+    }
+
     // Gera o 2fa novamente mas substitui na tabela ao invez de criar novo e adiciona +1 na contagem de reenvio
     const codigo = await sendTwoFactorCode(
       user_info,
@@ -588,7 +600,7 @@ router.post("/Reenviar", async (req, res) => {
       maxAge: 5 * 60 * 1000, // 5 minutos (tempo de expiração no banco)
     });
     //Mensagem de sucesso
-    res.json({ sucesso: "Sucesso" });
+    res.json({ cooldown: 60 });
   } catch (err) {
     //Em caso de erro
     console.log("Erro ao reenviar duplo fator: ", err);

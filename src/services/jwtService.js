@@ -39,7 +39,8 @@ async function sendTwoFactorCode(usuario, tipo, antigo = null) {
         code = $2,
         attempts = 0,
         expires_at = NOW() + INTERVAL '5 minutes',
-        resend_count = resend_count + 1
+        resend_count = resend_count + 1,
+        last_send_at = NOW()
         WHERE id = $3;`,
         [id, hash, antigo],
       );
