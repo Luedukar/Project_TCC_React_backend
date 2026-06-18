@@ -569,12 +569,14 @@ router.post("/Reenviar", async (req, res) => {
     // Salva as informações da consulta
     const user_info = result.rows[0];
 
+    // Máximo de reenvios = 3
     if (user_info.resend_count >= 3) {
       return res.status(401).json({
         erro: "Limite maximo de reenvios atingido, tente novamente mais tarde",
       });
     }
 
+    // Impede reenvios constantes (60 segundos entre reenvios)
     const secondsPassed = Math.floor(
       (Date.now() - new Date(user_info.last_send_at)) / 1000,
     );
