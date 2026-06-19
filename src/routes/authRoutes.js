@@ -3,6 +3,13 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
 const { autenticar, autenticarReset } = require("../middleware/authMiddleware");
+const {
+  loginLimiter,
+  registerLimiter,
+  duploFatorLimiter,
+  emailRecoverLimiter,
+  resendLimiter,
+} = require("../middleware/rateLimitMiddleware");
 const router = express.Router();
 const {
   validarFormatoEmail,
@@ -14,7 +21,7 @@ const { limparCookie, sendTwoFactorCode } = require("../services/jwtService");
 const isProduction = false;
 
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/login)
-router.post("/login", async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   // pega o conteudo recebido em json e devide o mesmo em variaveis como const email = req.body.email, neste caso fazendo por ordem (desestruturação)
   const { email, senha } = req.body;
 
@@ -68,7 +75,7 @@ router.post("/login", async (req, res) => {
 });
 
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/register)
-router.post("/register", async (req, res) => {
+router.post("/register", registerLimiter, async (req, res) => {
   const { nome, sobrenome, email, senha, celular, dataNascimento } = req.body;
 
   // Verifica novamente o formato do e-mail
@@ -258,7 +265,7 @@ router.post("/createProdutos", autenticar, async (req, res) => {
 });
 
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/autenticarDuploFator)
-router.post("/autenticarDuploFator", async (req, res) => {
+router.post("/autenticarDuploFator", duploFatorLimiter, async (req, res) => {
   // Salva o token obtido via Cookies e o código enviado via corpo da req
   const id_2fa = req.cookies.id_2fa;
   const codigoInserido = req.body.codigoInserido;
@@ -384,7 +391,7 @@ router.post("/deleteUser", autenticar, async (req, res) => {
 
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/emailRecoverPassword)
 // Rota para enviar e-mail de recuperação de senha
-router.post("/emailRecoverPassword", async (req, res) => {
+router.post("/emailRecoverPassword", emailRecoverLimiter, async (req, res) => {
   // endereço de email insero no corpo da req
   const email = req.body.email;
 
@@ -425,79 +432,83 @@ router.post("/emailRecoverPassword", async (req, res) => {
 });
 
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/autenticarDuploFatorSenha)
-router.post("/autenticarDuploFatorSenha", async (req, res) => {
-  // Salva o token obtido via Cookies e o código enviado via corpo da req
-  const id_2fa = req.cookies.id_2fa;
-  const codigoInserido = req.body.codigoInserido;
+router.post(
+  "/autenticarDuploFatorSenha",
+  duploFatorLimiter,
+  async (req, res) => {
+    // Salva o token obtido via Cookies e o código enviado via corpo da req
+    const id_2fa = req.cookies.id_2fa;
+    const codigoInserido = req.body.codigoInserido;
 
-  try {
-    // Busca pelo 2fa com o ID correspondente no banco
-    const result = await pool.query(
-      `SELECT * FROM two_factor_codes WHERE id = $1 AND attempts < 3 AND expires_at > NOW() AND mfa_status = TRUE AND type = 'recover';`,
-      [id_2fa],
-    );
-
-    // Se o retorno for 0 (zero linhas encontradas) o 2fa deste código é invalido (expirado ou inexistente), envia o erro e encerrar o bloco com o return
-    if (result.rows.length === 0) {
-      return res.status(401).json({
-        erro: "Erro ao identificar código, tente gerar um novo código",
-      });
-    }
-
-    // Será encontrado somente um resultado
-    const validar_2fa = result.rows[0];
-
-    /* Compara nosso valor senha obtido através do front com o valor obtido do banco, 
-    no banco a senha é um hash, então ele converte a senha do front em hash (mesma logica aplicada para sair o mesmo resultado)
-    e então faz a comparação */
-    const autenticar_2fa = await bcrypt.compare(
-      codigoInserido,
-      validar_2fa.code,
-    );
-
-    // Se o resultado não for TRUE, os códigos não correspondem, altera o número de tentativas restantes no banco e retorna a msg de erro
-    if (!autenticar_2fa) {
+    try {
+      // Busca pelo 2fa com o ID correspondente no banco
       const result = await pool.query(
-        `UPDATE two_factor_codes SET attempts = attempts + 1 WHERE id = $1;`,
+        `SELECT * FROM two_factor_codes WHERE id = $1 AND attempts < 3 AND expires_at > NOW() AND mfa_status = TRUE AND type = 'recover';`,
         [id_2fa],
       );
-      return res.status(401).json({ erro: "Codigo invalido" });
+
+      // Se o retorno for 0 (zero linhas encontradas) o 2fa deste código é invalido (expirado ou inexistente), envia o erro e encerrar o bloco com o return
+      if (result.rows.length === 0) {
+        return res.status(401).json({
+          erro: "Erro ao identificar código, tente gerar um novo código",
+        });
+      }
+
+      // Será encontrado somente um resultado
+      const validar_2fa = result.rows[0];
+
+      /* Compara nosso valor senha obtido através do front com o valor obtido do banco, 
+    no banco a senha é um hash, então ele converte a senha do front em hash (mesma logica aplicada para sair o mesmo resultado)
+    e então faz a comparação */
+      const autenticar_2fa = await bcrypt.compare(
+        codigoInserido,
+        validar_2fa.code,
+      );
+
+      // Se o resultado não for TRUE, os códigos não correspondem, altera o número de tentativas restantes no banco e retorna a msg de erro
+      if (!autenticar_2fa) {
+        const result = await pool.query(
+          `UPDATE two_factor_codes SET attempts = attempts + 1 WHERE id = $1;`,
+          [id_2fa],
+        );
+        return res.status(401).json({ erro: "Codigo invalido" });
+      }
+
+      // Se estiver tudo certo, torna o código utilizado invalido (já utilizado)
+      await pool.query(
+        `UPDATE two_factor_codes SET mfa_status = FALSE WHERE id = $1;`,
+        [id_2fa],
+      );
+
+      //limpa Cookie contendo o código do 2fa para recuperação de senha
+      limparCookie(res, "recoverPassword", isProduction);
+
+      // Gera o token assinado para a redefinição de senha
+      const Redefinicao = jwt.sign(
+        { idRedefinicao: validar_2fa.user_id },
+        process.env.JWT_SECRET2,
+        { expiresIn: "5 minutes" },
+      );
+
+      // Cria e salva o Cookie de login
+      res.cookie("Redefinicao", Redefinicao, {
+        httpOnly: true,
+        secure: isProduction, // true em produção
+        sameSite: "Strict",
+        maxAge: 5 * 60 * 1000, // 5 minutos (tempo de expiração no banco)
+      });
+      // retorna msg de sucesso aguardada pelo front
+      res.json({ sucesso: "Código de redefinição validado com sucesso" });
+
+      // Caso aconteça alguma falha, mensagem de erro contendo o erro que aconteceu
+    } catch (err) {
+      console.error("Erro ao tentar validar código", err);
+      res.status(500).json({
+        erro: "Erro ao validar código de redefinição de senha, tente novamente",
+      });
     }
-
-    // Se estiver tudo certo, torna o código utilizado invalido (já utilizado)
-    await pool.query(
-      `UPDATE two_factor_codes SET mfa_status = FALSE WHERE id = $1;`,
-      [id_2fa],
-    );
-
-    //limpa Cookie contendo o código do 2fa para recuperação de senha
-    limparCookie(res, "recoverPassword", isProduction);
-
-    // Gera o token assinado para a redefinição de senha
-    const Redefinicao = jwt.sign(
-      { idRedefinicao: validar_2fa.user_id },
-      process.env.JWT_SECRET2,
-      { expiresIn: "5 minutes" },
-    );
-
-    // Cria e salva o Cookie de login
-    res.cookie("Redefinicao", Redefinicao, {
-      httpOnly: true,
-      secure: isProduction, // true em produção
-      sameSite: "Strict",
-      maxAge: 5 * 60 * 1000, // 5 minutos (tempo de expiração no banco)
-    });
-    // retorna msg de sucesso aguardada pelo front
-    res.json({ sucesso: "Código de redefinição validado com sucesso" });
-
-    // Caso aconteça alguma falha, mensagem de erro contendo o erro que aconteceu
-  } catch (err) {
-    console.error("Erro ao tentar validar código", err);
-    res.status(500).json({
-      erro: "Erro ao validar código de redefinição de senha, tente novamente",
-    });
-  }
-});
+  },
+);
 
 // Cria a rota a ser usado no frontend (http://localhost:3000/auth/RedefinirSenha)
 router.post("/RedefinirPassword", autenticarReset, async (req, res) => {
@@ -535,7 +546,7 @@ router.post("/RedefinirPassword", autenticarReset, async (req, res) => {
 });
 
 //Cria a rota a ser usado no frontend (http://localhost:3000/auth/Renvio)
-router.post("/Reenviar", async (req, res) => {
+router.post("/Reenviar", resendLimiter, async (req, res) => {
   // ID_2fa antigo para validação e substituição do código
   const id_2fa = req.cookies.id_2fa;
 
