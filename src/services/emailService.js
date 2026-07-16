@@ -16,7 +16,7 @@ const transporter = nodemailer.createTransport({
 // Envia o email para duplo fator
 async function sendTwoFactorEmail(to, codigo) {
   await transporter.sendMail({
-    from: '"ADM do projeto" <luedukar@gmail.com>',
+    from: `"ADM do projeto" <${process.env.user_email}>`,
     to,
     subject: "Código de dois fatores",
     html: template_twoFactor(codigo), // função com o template de envio
@@ -27,7 +27,7 @@ async function sendTwoFactorEmail(to, codigo) {
 // Envia o email para recuperar senha
 async function sendTwoFactorEmailPassword(to, codigo) {
   await transporter.sendMail({
-    from: '"ADM do projeto" <luedukar@gmail.com>',
+    from: `"ADM do projeto" <${process.env.user_email}>`,
     to,
     subject: "Código de recuperação de senha",
     html: template_twoFactorPassword(codigo), // função com o template de envio
